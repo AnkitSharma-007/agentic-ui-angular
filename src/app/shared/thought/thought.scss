@@ -1,0 +1,78 @@
+:host {
+  display: block;
+}
+
+.thought-panel {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--mat-sys-tertiary) 5%, var(--mat-sys-surface-container)) 0%,
+    var(--mat-sys-surface-container) 100%
+  );
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--mat-sys-tertiary) 22%, var(--mat-sys-outline-variant));
+  overflow: hidden;
+
+  mat-panel-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--mat-sys-tertiary);
+    font-weight: 600;
+    font-size: 14px;
+    flex: 0 0 auto;
+    margin-right: 0.75rem;
+  }
+
+  mat-panel-description {
+    justify-content: flex-end;
+    align-items: center;
+  }
+
+  .icon {
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  .title-text {
+    font-size: 13px;
+    letter-spacing: -0.005em;
+  }
+
+  .char-count {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--mat-sys-on-surface-variant);
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    background-color: var(--mat-sys-surface-container-high);
+    border: 1px solid var(--mat-sys-outline-variant);
+  }
+}
+
+.thought-body {
+  padding: 0.25rem 0 0.5rem;
+  max-height: 360px;
+  overflow-y: auto;
+  font-size: 13px;
+  color: var(--mat-sys-on-surface-variant);
+
+  ::ng-deep .md {
+    font-size: 13px;
+
+    p,
+    li {
+      margin: 0.4em 0;
+    }
+
+    strong {
+      color: var(--mat-sys-tertiary);
+    }
+  }
+}
+
+.thought-progress {
+  margin-top: 0.5rem;
+  border-radius: 999px;
+  overflow: hidden;
+  height: 2px;
+}

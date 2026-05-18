@@ -1,0 +1,111 @@
+<mat-card class="flight-card" appearance="outlined">
+  <mat-card-header>
+    <div class="tool-header-row">
+      <div class="tool-title-block">
+        <span class="material-symbols-outlined tool-icon" aria-hidden="true">flight_takeoff</span>
+        <div class="tool-title-text">
+          <span class="tool-name">Flight options</span>
+          <span class="route">{{ route() }} · {{ args().date }} · {{ args().passengers }} pax</span>
+        </div>
+      </div>
+
+      @switch (status()) {
+        @case ('pending_approval') {
+          <span class="tool-status pending">awaiting approval</span>
+        }
+        @case ('running') {
+          <span class="tool-status running">running</span>
+        }
+        @case ('complete') {
+          <span class="tool-status complete">{{ flights().length }} found</span>
+        }
+        @case ('error') {
+          <span class="tool-status error">failed</span>
+        }
+        @case ('rejected') {
+          <span class="tool-status rejected">cancelled</span>
+        }
+      }
+    </div>
+  </mat-card-header>
+
+  @if (isPending()) {
+    <mat-card-content>
+      <div class="tool-pending-banner">
+        <span class="material-symbols-outlined" aria-hidden="true">pending</span>
+        <span>{{ interruptReason() ?? 'Waiting for your approval to run this search.' }}</span>
+      </div>
+    </mat-card-content>
+  }
+
+  @if (isRejected()) {
+    <mat-card-content>
+      <div class="tool-rejected-banner">
+        <span class="material-symbols-outlined" aria-hidden="true">do_not_disturb_on</span>
+        <span>{{ interruptReason() ?? 'Search cancelled.' }}</span>
+      </div>
+    </mat-card-content>
+  }
+
+  @if (isRunning()) {
+    <mat-progress-bar mode="indeterminate" class="tool-card-progress" />
+    <mat-card-content>
+      <div class="skeleton-list">
+        @for (i of [0, 1, 2]; track i) {
+          <div class="skeleton-row">
+            <div class="skeleton time"></div>
+            <div class="skeleton route"></div>
+            <div class="skeleton price"></div>
+          </div>
+        }
+      </div>
+    </mat-card-content>
+  }
+
+  @if (isComplete()) {
+    <mat-card-content>
+      <ul class="flight-list">
+        @for (flight of flights(); track flight.id) {
+          <li class="flight-row">
+            <div class="flight-time">
+              <span class="depart">{{ formatTime(flight.departAt) }}</span>
+              <span class="arrow" aria-hidden="true">→</span>
+              <span class="arrive">{{ formatTime(flight.arriveAt) }}</span>
+            </div>
+            <div class="flight-meta">
+              <span class="airline">{{ flight.airline }}</span>
+              <span class="duration">{{ formatDuration(flight.durationMinutes) }}</span>
+              @if (flight.stops === 0) {
+                <span class="badge nonstop">non-stop</span>
+              } @else {
+                <span class="badge stops">{{ flight.stops }} stop</span>
+              }
+            </div>
+            <div class="flight-price">{{ formatPrice(flight.price.amount, flight.price.currency) }}</div>
+          </li>
+        }
+      </ul>
+
+      @defer (on interaction; prefetch on idle) {
+        <details class="flight-fine-print">
+          <summary>Fine print</summary>
+          <p class="fine-print-body">
+            Prices include taxes and one cabin bag. Refundable fares not shown.
+            Mock data, for live demo purposes only.
+          </p>
+        </details>
+      } @placeholder {
+        <button type="button" class="fine-print-toggle">Show fine print…</button>
+      }
+    </mat-card-content>
+  }
+
+  @if (isError()) {
+    <mat-card-content>
+      <div class="tool-error-banner">
+        <span class="material-symbols-outlined" aria-hidden="true">error</span>
+        <span>{{ errorMessage() ?? 'Tool execution failed.' }}</span>
+      </div>
+    </mat-card-content>
+  }
+</mat-card>

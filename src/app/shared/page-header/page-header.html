@@ -1,0 +1,18 @@
+<header class="page-header">
+  <div class="page-header__text">
+    <span class="eyebrow">
+      @if (pulseDot()) {
+        <span class="pulse-dot" aria-hidden="true"></span>
+      } @else if (icon(); as ic) {
+        <span class="material-symbols-outlined" aria-hidden="true">{{ ic }}</span>
+      }
+      {{ eyebrow() }}
+    </span>
+    <h1 class="page-title">{{ titleStart() }}<span class="grad">{{ titleAccent() }}</span>{{ titleEnd() }}</h1>
+    @if (subtitle(); as sub) {
+      <p class="page-subtitle">{{ sub }}</p>
+    }
+    <ng-content />
+  </div>
+  <ng-content select="[pageHeaderActions]" />
+</header>

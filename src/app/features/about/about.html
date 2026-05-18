@@ -1,0 +1,113 @@
+<section class="about-page">
+  <app-page-header
+    icon="explore"
+    eyebrow="About"
+    titleStart="Meet "
+    [titleAccent]="config.appName"
+    titleEnd="."
+    [subtitle]="config.tagline"
+  />
+
+  <mat-card appearance="outlined" class="card hero-card">
+    <mat-card-content>
+      <span class="hero-eyebrow">Thesis</span>
+      <p class="lead">
+        {{ config.appName }} is an agentic UI built on Angular and Gemini 3.
+        The thesis is simple.
+      </p>
+
+      <aside class="thesis-callout" aria-label="Thesis">
+        The UI itself is the agent's runtime.
+      </aside>
+
+      <p>
+        Tool calls render real interactive components (flight cards, hotel
+        cards, comparison tables, route maps) rather than text blobs the user
+        has to parse. The model's reasoning is a first-class panel of the
+        page. Pause, approve, and reject aren't ad-hoc modal callbacks but
+        reactive edges in the agent graph. When the user picks one of three
+        options the comparison table presented, that <em>is</em> the tool's
+        return value. The model never needs a follow-up call.
+      </p>
+    </mat-card-content>
+  </mat-card>
+
+  <div class="pillars-header">
+    <span class="eyebrow eyebrow--muted">
+      <span class="material-symbols-outlined" aria-hidden="true">deployed_code</span>
+      Architectural pillars
+    </span>
+    <h2 class="pillars-title">Four ideas that make Atlas tick.</h2>
+  </div>
+
+  <div class="feature-grid">
+    <mat-card appearance="outlined" class="card feature-card">
+      <mat-card-content>
+        <header class="feature-head">
+          <span class="feat-icon" aria-hidden="true">
+            <mat-icon>layers</mat-icon>
+          </span>
+          <span class="pillar-tag">01 · State</span>
+        </header>
+        <h3>Dual-view state</h3>
+        <p>
+          The UI consumes a stream of typed
+          <code>AgentEvent</code>s; the raw <code>Content[]</code> history
+          with <code>thoughtSignature</code> blobs is preserved in lock-step
+          so multi-turn loops keep their reasoning context.
+        </p>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card appearance="outlined" class="card feature-card">
+      <mat-card-content>
+        <header class="feature-head">
+          <span class="feat-icon" aria-hidden="true">
+            <mat-icon>pan_tool</mat-icon>
+          </span>
+          <span class="pillar-tag">02 · Control</span>
+        </header>
+        <h3>Human-in-the-loop</h3>
+        <p>
+          Interruptive tools pause the agent loop and emit an
+          <code>interrupt_request</code>; the user's approve / reject / select
+          decision becomes the next round's <code>functionResponse</code>.
+        </p>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card appearance="outlined" class="card feature-card">
+      <mat-card-content>
+        <header class="feature-head">
+          <span class="feat-icon" aria-hidden="true">
+            <mat-icon>bolt</mat-icon>
+          </span>
+          <span class="pillar-tag">03 · Performance</span>
+        </header>
+        <h3>Lazy descriptor loading</h3>
+        <p>
+          Tool components ship in their own chunks. The registry kicks off
+          the dynamic import the moment Gemini emits a <code>tool_call</code>,
+          so the chunk lands by the time the UI needs to render it.
+        </p>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card appearance="outlined" class="card feature-card">
+      <mat-card-content>
+        <header class="feature-head">
+          <span class="feat-icon" aria-hidden="true">
+            <mat-icon>replay</mat-icon>
+          </span>
+          <span class="pillar-tag">04 · Replay</span>
+        </header>
+        <h3>Deterministic replays</h3>
+        <p>
+          Every turn can be saved to IndexedDB and played back with original
+          timing. The dual-view state model means replays are byte-identical
+          re-emissions, not best-effort reconstructions.
+        </p>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</section>

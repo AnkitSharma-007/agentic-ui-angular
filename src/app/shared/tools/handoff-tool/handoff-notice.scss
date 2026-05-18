@@ -1,0 +1,129 @@
+.handoff-card {
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--mat-sys-outline-variant) 70%, transparent);
+  background:
+    linear-gradient(180deg, rgba(149, 96, 250, 0.06), rgba(255, 110, 199, 0.04)),
+    var(--mat-sys-surface);
+  padding: 1rem 1.125rem 0.875rem !important;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  box-shadow: 0 6px 18px -10px color-mix(in srgb, var(--mat-sys-primary) 30%, transparent);
+  animation: handoff-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  &.running .arrow-track {
+    background: linear-gradient(90deg, transparent, var(--mat-sys-primary), transparent);
+    background-size: 200% 100%;
+    animation: arrow-glide 1.4s linear infinite;
+  }
+}
+
+@keyframes handoff-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.handoff-flow {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.agent-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-1, var(--mat-sys-primary)) 18%, transparent), color-mix(in srgb, var(--accent-2, var(--mat-sys-tertiary)) 14%, transparent));
+  border: 1px solid color-mix(in srgb, var(--accent-1, var(--mat-sys-primary)) 40%, transparent);
+
+  mat-icon {
+    color: var(--accent-1, var(--mat-sys-primary));
+    font-size: 22px;
+    width: 22px;
+    height: 22px;
+  }
+
+  &.placeholder {
+    background: color-mix(in srgb, var(--mat-sys-surface-container-highest) 70%, transparent);
+    border-color: color-mix(in srgb, var(--mat-sys-outline-variant) 60%, transparent);
+    color: color-mix(in srgb, var(--mat-sys-on-surface) 75%, transparent);
+
+    mat-icon {
+      color: color-mix(in srgb, var(--mat-sys-on-surface) 65%, transparent);
+    }
+  }
+
+  .chip-name {
+    font: 600 0.875rem/1.1 var(--font-sans);
+    color: var(--mat-sys-on-surface);
+  }
+
+  code.chip-name {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+  }
+}
+
+.handoff-arrow {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  min-width: 56px;
+  justify-content: center;
+  position: relative;
+  color: var(--mat-sys-primary);
+
+  .arrow-track {
+    position: absolute;
+    top: 50%;
+    left: 8px;
+    right: 8px;
+    height: 2px;
+    background: color-mix(in srgb, var(--mat-sys-outline-variant) 60%, transparent);
+    border-radius: 1px;
+    transform: translateY(-50%);
+  }
+
+  .arrow-head {
+    position: relative;
+    z-index: 1;
+    background: var(--mat-sys-surface);
+    border-radius: 50%;
+    padding: 0.125rem;
+    font-size: 22px;
+    width: 22px;
+    height: 22px;
+  }
+}
+
+@keyframes arrow-glide {
+  0% { background-position: -100% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.handoff-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding-top: 0.625rem;
+  border-top: 1px dashed color-mix(in srgb, var(--mat-sys-outline-variant) 50%, transparent);
+}
+
+.badge {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--mat-sys-primary);
+}
+
+.reason {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--mat-sys-on-surface) 80%, transparent);
+}

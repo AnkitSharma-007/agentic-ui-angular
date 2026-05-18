@@ -1,0 +1,122 @@
+:host {
+  display: block;
+}
+
+.booking-card {
+  border-radius: 16px;
+  background-color: var(--mat-sys-surface-container);
+  border: 1px solid var(--mat-sys-outline-variant);
+  overflow: hidden;
+  transition: border-color 0.25s ease, background-color 0.25s ease, box-shadow 0.25s ease;
+
+  &:hover {
+    box-shadow: 0 16px 36px -28px color-mix(in srgb, var(--mat-sys-primary) 70%, transparent);
+  }
+
+  &.pending {
+    border-color: color-mix(in srgb, var(--mat-sys-tertiary) 65%, transparent);
+
+    .tool-icon { color: var(--mat-sys-tertiary); }
+  }
+
+  &.confirmed {
+    border-color: var(--mat-sys-primary);
+
+    .tool-icon { color: var(--mat-sys-primary); }
+  }
+
+  &.rejected {
+    border-color: var(--mat-sys-outline-variant);
+
+    .tool-icon { color: var(--mat-sys-outline); }
+  }
+
+  .route {
+    font-size: 14px;
+    color: var(--mat-sys-on-surface);
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.reason {
+  margin: 0 0 0.85rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  background-color: var(--mat-sys-tertiary-container);
+  color: var(--mat-sys-on-tertiary-container);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.args-grid {
+  display: grid;
+  grid-template-columns: minmax(110px, auto) 1fr;
+  row-gap: 0.45rem;
+  column-gap: 1rem;
+  margin: 0;
+
+  dt {
+    font-size: 12px;
+    color: var(--mat-sys-on-surface-variant);
+    align-self: center;
+  }
+
+  dd {
+    margin: 0;
+    font-size: 14px;
+    color: var(--mat-sys-on-surface);
+    align-self: center;
+    overflow-wrap: anywhere;
+  }
+
+  dd.fare {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  dd.booking-ref {
+    font-family: var(--font-mono);
+    letter-spacing: 0.02em;
+    color: var(--mat-sys-primary);
+    font-weight: 500;
+  }
+}
+
+.reject-note {
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem 1rem;
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+}
+
+.working-line {
+  margin: 0.5rem 0 0;
+  font-size: 13px;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.rejected-line {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--mat-sys-on-surface-variant);
+
+  em {
+    font-style: normal;
+    color: var(--mat-sys-on-surface);
+    font-weight: 500;
+  }
+}

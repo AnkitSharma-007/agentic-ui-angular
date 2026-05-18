@@ -1,0 +1,127 @@
+<mat-card class="hotel-card" appearance="outlined">
+  <mat-card-header>
+    <div class="tool-header-row">
+      <div class="tool-title-block">
+        <span class="material-symbols-outlined tool-icon" aria-hidden="true">hotel</span>
+        <div class="tool-title-text">
+          <span class="tool-name">Hotel options</span>
+          <span class="route">{{ headerLine() }}</span>
+        </div>
+      </div>
+
+      @switch (status()) {
+        @case ('pending_approval') {
+          <span class="tool-status pending">awaiting approval</span>
+        }
+        @case ('running') {
+          <span class="tool-status running">running</span>
+        }
+        @case ('complete') {
+          <span class="tool-status complete">{{ hotels().length }} found</span>
+        }
+        @case ('error') {
+          <span class="tool-status error">failed</span>
+        }
+        @case ('rejected') {
+          <span class="tool-status rejected">cancelled</span>
+        }
+      }
+    </div>
+  </mat-card-header>
+
+  @if (isPending()) {
+    <mat-card-content>
+      <div class="tool-pending-banner">
+        <span class="material-symbols-outlined" aria-hidden="true">pending</span>
+        <span>{{ interruptReason() ?? 'Waiting for your approval to run this search.' }}</span>
+      </div>
+    </mat-card-content>
+  }
+
+  @if (isRejected()) {
+    <mat-card-content>
+      <div class="tool-rejected-banner">
+        <span class="material-symbols-outlined" aria-hidden="true">do_not_disturb_on</span>
+        <span>{{ interruptReason() ?? 'Search cancelled.' }}</span>
+      </div>
+    </mat-card-content>
+  }
+
+  @if (isRunning()) {
+    <mat-progress-bar mode="indeterminate" class="tool-card-progress" />
+    <mat-card-content>
+      <div class="skeleton-list">
+        @for (i of [0, 1, 2]; track i) {
+          <div class="skeleton-row">
+            <div class="skeleton thumb"></div>
+            <div class="skeleton-text-block">
+              <div class="skeleton name"></div>
+              <div class="skeleton meta"></div>
+            </div>
+            <div class="skeleton price"></div>
+          </div>
+        }
+      </div>
+    </mat-card-content>
+  }
+
+  @if (isComplete()) {
+    <mat-card-content>
+      <ul class="hotel-list">
+        @for (hotel of hotels(); track hotel.id) {
+          <li class="hotel-row">
+            <div class="hotel-thumb" aria-hidden="true">
+              <span class="material-symbols-outlined">apartment</span>
+            </div>
+
+            <div class="hotel-info">
+              <div class="hotel-name-row">
+                <span class="hotel-name">{{ hotel.name }}</span>
+                @if (hotel.vegetarianFriendly) {
+                  <span class="badge veg" title="Vegetarian-friendly">
+                    <span class="material-symbols-outlined" aria-hidden="true">eco</span>
+                    veg
+                  </span>
+                }
+              </div>
+              <div class="hotel-meta">
+                <span class="rating">
+                  <span class="material-symbols-outlined star" aria-hidden="true">star</span>
+                  {{ formatRating(hotel.rating) }}
+                  <span class="reviews">· {{ hotel.reviewCount }} reviews</span>
+                </span>
+                <span class="dot" aria-hidden="true">·</span>
+                <span class="neighbourhood">{{ hotel.neighbourhood }}</span>
+              </div>
+              <div class="amenities">
+                @for (amenity of hotel.amenities; track amenity) {
+                  <span class="amenity-chip">{{ amenity }}</span>
+                }
+              </div>
+            </div>
+
+            <div class="hotel-price">
+              <span class="price">{{ formatPrice(hotel.price.amountPerNight, hotel.price.currency) }}</span>
+              <span class="unit">/ night</span>
+              @if (nights() > 0) {
+                <span class="total">
+                  {{ formatPrice(hotel.price.amountPerNight * nights(), hotel.price.currency) }}
+                  total
+                </span>
+              }
+            </div>
+          </li>
+        }
+      </ul>
+    </mat-card-content>
+  }
+
+  @if (isError()) {
+    <mat-card-content>
+      <div class="tool-error-banner">
+        <span class="material-symbols-outlined" aria-hidden="true">error</span>
+        <span>{{ errorMessage() ?? 'Tool execution failed.' }}</span>
+      </div>
+    </mat-card-content>
+  }
+</mat-card>

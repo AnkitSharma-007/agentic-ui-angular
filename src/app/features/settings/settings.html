@@ -1,0 +1,212 @@
+<section class="settings-page">
+  <app-page-header
+    icon="tune"
+    eyebrow="Configuration"
+    titleStart="Tune "
+    titleAccent="Atlas"
+    titleEnd="."
+    subtitle="Pick a model, manage your API key, and set per-turn budget caps so a runaway agent can't burn through tokens."
+  />
+
+  <mat-card appearance="outlined" class="settings-card">
+    <div class="card-head">
+      <span class="card-head-icon">
+        <mat-icon>graph_3</mat-icon>
+      </span>
+      <div class="card-head-text">
+        <h2>Model</h2>
+        <p>The Gemini model used for new chats.</p>
+      </div>
+    </div>
+    <div class="card-body">
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Gemini model</mat-label>
+        <mat-icon matPrefix aria-hidden="true">smart_toy</mat-icon>
+        <mat-select [value]="gemini.selectedModel()" (selectionChange)="selectModel($event.value)">
+          @for (m of models; track m.id) {
+            <mat-option [value]="m.id">{{ m.label }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      @if (selectedModelMeta(); as meta) {
+        <div class="model-meta">
+          <span class="meta-chip" [class.meta-chip--pro]="meta.tier === 'pro'">
+            <mat-icon>{{ meta.tier === 'pro' ? 'workspace_premium' : 'bolt' }}</mat-icon>
+            {{ meta.tier === 'pro' ? 'Pro tier' : meta.tier === 'flash' ? 'Flash tier' : 'Flash-Lite' }}
+          </span>
+          <span class="meta-chip">
+            <mat-icon>{{ meta.tier === 'pro' ? 'payments' : 'savings' }}</mat-icon>
+            {{ meta.tier === 'pro' ? 'Paid usage' : 'Free tier eligible' }}
+          </span>
+        </div>
+      }
+    </div>
+  </mat-card>
+
+  <mat-card appearance="outlined" class="settings-card">
+    <div class="card-head">
+      <span class="card-head-icon">
+        <mat-icon>vpn_key</mat-icon>
+      </span>
+      <div class="card-head-text">
+        <h2>API key</h2>
+        <p>Where Atlas is keeping your key right now.</p>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="status-grid">
+        <div class="status-item">
+          <span class="status-label">Storage</span>
+          <span class="status-value">
+            <mat-icon>{{ apiKey.storage() === 'encrypted-local' ? 'enhanced_encryption' : apiKey.storage() === 'session' ? 'timer' : 'help' }}</mat-icon>
+            {{ apiKey.storage() }}
+          </span>
+        </div>
+        <div class="status-item">
+          <span class="status-label">In memory</span>
+          <span class="status-value" [class.status-value--ok]="apiKey.hasKey()">
+            <mat-icon>{{ apiKey.hasKey() ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+            {{ apiKey.hasKey() ? 'Yes' : 'No' }}
+          </span>
+        </div>
+      </div>
+      <p class="card-note">
+        Session-only keys are wiped when the tab closes. Encrypted-local keys
+        survive across sessions and require your passphrase to unlock.
+      </p>
+    </div>
+    <div class="card-actions">
+      <button mat-stroked-button color="warn" (click)="clearKey()" [disabled]="!apiKey.hasKey()">
+        <mat-icon>delete</mat-icon>
+        Clear key
+      </button>
+    </div>
+  </mat-card>
+
+  <mat-card appearance="outlined" class="settings-card budget-card">
+    <div class="card-head">
+      <span class="card-head-icon">
+        <mat-icon>shield</mat-icon>
+      </span>
+      <div class="card-head-text">
+        <h2>Budget controls</h2>
+        <p>
+          Per-turn safety net. The agent loop aborts the next round if any cap
+          is breached, with a clear reason shown to the user.
+        </p>
+      </div>
+      @if (budgetSaveStatus() === 'saved') {
+        <span class="saved-pill" role="status">
+          <mat-icon>check_circle</mat-icon> Saved
+        </span>
+      }
+    </div>
+    <div class="card-body">
+      <div class="presets">
+        <span class="presets-label">Quick presets</span>
+        <button mat-stroked-button (click)="applyPreset('tight')">
+          <mat-icon>speed</mat-icon>
+          Tight
+        </button>
+        <button mat-stroked-button (click)="applyPreset('demo')">
+          <mat-icon>play_circle</mat-icon>
+          Demo
+        </button>
+        <button mat-stroked-button (click)="applyPreset('generous')">
+          <mat-icon>all_inclusive</mat-icon>
+          Generous
+        </button>
+      </div>
+
+      <div class="budget-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Max tokens / turn</mat-label>
+          <mat-icon matPrefix aria-hidden="true">token</mat-icon>
+          <input
+            matInput
+            type="number"
+            min="0"
+            step="1000"
+            placeholder="e.g. 40000"
+            [ngModel]="maxTokensInput()"
+            (ngModelChange)="maxTokensInput.set($event)"
+          />
+          <mat-hint>Empty = no cap</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Max rounds / turn</mat-label>
+          <mat-icon matPrefix aria-hidden="true">repeat</mat-icon>
+          <input
+            matInput
+            type="number"
+            min="0"
+            step="1"
+            placeholder="e.g. 6"
+            [ngModel]="maxRoundsInput()"
+            (ngModelChange)="maxRoundsInput.set($event)"
+          />
+          <mat-hint>Caps tool-loop length</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Max cost (USD) / turn</mat-label>
+          <mat-icon matPrefix aria-hidden="true">payments</mat-icon>
+          <input
+            matInput
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="e.g. 0.10"
+            [ngModel]="maxCostInput()"
+            (ngModelChange)="maxCostInput.set($event)"
+          />
+          <mat-hint>Computed from model pricing</mat-hint>
+        </mat-form-field>
+      </div>
+    </div>
+    <div class="card-actions">
+      <button mat-stroked-button (click)="resetBudget()">
+        <mat-icon>restart_alt</mat-icon>
+        Clear all
+      </button>
+      <button mat-flat-button color="primary" (click)="saveBudget()">
+        <mat-icon>save</mat-icon>
+        Save
+      </button>
+    </div>
+  </mat-card>
+
+  <mat-card appearance="outlined" class="settings-card">
+    <div class="card-head">
+      <span class="card-head-icon">
+        <mat-icon>contrast</mat-icon>
+      </span>
+      <div class="card-head-text">
+        <h2>Theme</h2>
+        <p>
+          Resolved: <strong>{{ theme.resolvedTheme() }}</strong>. Pick a fixed
+          mode or follow your OS.
+        </p>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="theme-picker" role="radiogroup" aria-label="Theme preference">
+        @for (opt of themeOptions; track opt.value) {
+          <button
+            type="button"
+            role="radio"
+            class="theme-option"
+            [class.theme-option--active]="theme.preference() === opt.value"
+            [attr.aria-checked]="theme.preference() === opt.value"
+            (click)="theme.set(opt.value)"
+          >
+            <mat-icon>{{ opt.icon }}</mat-icon>
+            <span>{{ opt.label }}</span>
+          </button>
+        }
+      </div>
+    </div>
+  </mat-card>
+</section>

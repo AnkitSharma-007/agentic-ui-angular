@@ -1,0 +1,113 @@
+:host {
+  display: block;
+}
+
+.map-card {
+  border-radius: 16px;
+  background-color: var(--mat-sys-surface-container);
+  border: 1px solid var(--mat-sys-outline-variant);
+  transition: border-color 0.25s ease, background-color 0.25s ease, box-shadow 0.25s ease;
+  overflow: hidden;
+
+  &:hover {
+    box-shadow: 0 16px 36px -28px color-mix(in srgb, var(--mat-sys-primary) 70%, transparent);
+  }
+
+  &.running {
+    border-color: color-mix(in srgb, var(--mat-sys-tertiary) 65%, transparent);
+
+    .tool-icon { color: var(--mat-sys-secondary); }
+  }
+
+  &.complete {
+    border-color: var(--mat-sys-primary);
+
+    .tool-icon { color: var(--mat-sys-primary); }
+  }
+
+  .trip-title {
+    font-size: 14px;
+    color: var(--mat-sys-on-surface);
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.map-content {
+  padding-top: 0.5rem;
+}
+
+.skeleton-map {
+  position: relative;
+  width: 100%;
+  height: 280px;
+  border-radius: 8px;
+  background: linear-gradient(
+    135deg,
+    var(--mat-sys-surface-container) 25%,
+    var(--mat-sys-surface-container-high) 50%,
+    var(--mat-sys-surface-container) 75%
+  );
+  background-size: 200% 200%;
+  animation: skeleton-shimmer 2.4s ease-in-out infinite;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.skeleton-hint {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--mat-sys-on-surface-variant);
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  background-color: var(--mat-sys-surface);
+}
+
+.loading-map .tool-card-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+@keyframes skeleton-shimmer {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.legend {
+  margin: 0.85rem 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  font-size: 11px;
+  color: var(--mat-sys-on-surface-variant);
+
+  .legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .legend-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    border: 1.5px solid #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  }
+
+  [data-kind="origin"] .legend-dot      { background: #1f6feb; }
+  [data-kind="destination"] .legend-dot { background: #a371f7; }
+  [data-kind="stay"] .legend-dot        { background: #3fb950; }
+  [data-kind="stop"] .legend-dot        { background: #d29922; }
+}

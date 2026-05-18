@@ -1,0 +1,47 @@
+<mat-card class="handoff-card" [class.running]="status() === 'running'">
+  <div class="handoff-flow">
+    @if (fromAgent(); as from) {
+      <div
+        class="agent-chip from"
+        [style.--accent-1]="from.accent[0]"
+        [style.--accent-2]="from.accent[1]"
+      >
+        <mat-icon>{{ from.icon }}</mat-icon>
+        <span class="chip-name">{{ from.name }}</span>
+      </div>
+    } @else {
+      <div class="agent-chip placeholder">
+        <mat-icon>smart_toy</mat-icon>
+        <span class="chip-name">Previous agent</span>
+      </div>
+    }
+
+    <div class="handoff-arrow" aria-hidden="true">
+      <span class="arrow-track"></span>
+      <mat-icon class="arrow-head">arrow_right_alt</mat-icon>
+    </div>
+
+    @if (toAgent(); as to) {
+      <div
+        class="agent-chip to"
+        [style.--accent-1]="to.accent[0]"
+        [style.--accent-2]="to.accent[1]"
+      >
+        <mat-icon>{{ to.icon }}</mat-icon>
+        <span class="chip-name">{{ to.name }}</span>
+      </div>
+    } @else {
+      <div class="agent-chip placeholder">
+        <mat-icon>smart_toy</mat-icon>
+        <code class="chip-name">{{ toAgentId() }}</code>
+      </div>
+    }
+  </div>
+
+  <div class="handoff-body">
+    <span class="badge">Agent handoff</span>
+    @if (reason(); as r) {
+      <p class="reason">{{ r }}</p>
+    }
+  </div>
+</mat-card>

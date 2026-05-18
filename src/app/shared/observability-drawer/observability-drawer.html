@@ -1,0 +1,160 @@
+<!-- Backdrop -->
+@if (isOpen()) {
+  <div class="backdrop" (click)="close()" aria-hidden="true"></div>
+}
+
+<aside
+  class="drawer"
+  [class.open]="isOpen()"
+  role="dialog"
+  aria-modal="true"
+  aria-label="Agent observability dashboard"
+  [attr.aria-hidden]="!isOpen()"
+  [cdkTrapFocus]="isOpen()"
+>
+  <header class="drawer-head">
+    <div class="head-title">
+      <span class="eyebrow">Observability</span>
+      <h2 class="title">Agent run</h2>
+    </div>
+    <button
+      #closeBtn
+      mat-icon-button
+      class="close-btn"
+      aria-label="Close"
+      (click)="close()"
+    >
+      <mat-icon>close</mat-icon>
+    </button>
+  </header>
+
+  @if (!hasData()) {
+    <section class="empty">
+      <mat-icon class="empty-icon">monitoring</mat-icon>
+      <p class="empty-title">No agent runs yet</p>
+      <p class="empty-sub">
+        Run a prompt to see per-round latency, token usage, and tool-call timings here.
+      </p>
+    </section>
+  } @else {
+    <section class="summary">
+      <div class="summary-metric">
+        <span class="metric-label">Cost</span>
+        <strong class="metric-value">{{ fmtUsd(totalCost()) }}</strong>
+      </div>
+      <div class="summary-metric">
+        <span class="metric-label">Tokens</span>
+        <strong class="metric-value">{{ fmtTokens(totalTokens()) }}</strong>
+      </div>
+      <div class="summary-metric">
+        <span class="metric-label">Rounds</span>
+        <strong class="metric-value">{{ roundCount() }}</strong>
+      </div>
+      <div class="summary-metric">
+        <span class="metric-label">Latency</span>
+        <strong class="metric-value">{{ fmtLatency(totalLatency()) }}</strong>
+      </div>
+    </section>
+
+    <section class="waterfall" aria-label="Round and tool-call waterfall">
+      <header class="wf-head">
+        <span class="wf-title">Timeline</span>
+        <span class="wf-meta">{{ fmtLatency(bounds().durationMs) }} span</span>
+      </header>
+      <div class="wf-rows">
+        @for (row of rows(); track row.id) {
+          <button
+            type="button"
+            class="wf-row"
+            [class.kind-round]="row.kind === 'round'"
+            [class.kind-tool]="row.kind === 'tool'"
+            [class.selected]="selectedRow()?.id === row.id"
+            [attr.aria-label]="row.label + ', ' + fmtLatency(row.durationMs)"
+            (click)="selectRow(row.id)"
+          >
+            <span class="wf-label">{{ row.label }}</span>
+            <div class="wf-track">
+              <span
+                class="wf-bar"
+                [class.status-error]="row.toolStatus === 'error'"
+                [class.status-rejected]="row.toolStatus === 'rejected'"
+                [style.left.%]="row.leftPct"
+                [style.width.%]="row.widthPct"
+              ></span>
+            </div>
+            <span class="wf-dur">{{ fmtLatency(row.durationMs) }}</span>
+          </button>
+        }
+      </div>
+    </section>
+
+    @if (selectedRow(); as sel) {
+      <section class="detail" aria-live="polite">
+        <header class="detail-head">
+          <div class="detail-title">
+            <span class="detail-kind" [class.kind-round]="sel.kind === 'round'" [class.kind-tool]="sel.kind === 'tool'">
+              {{ sel.kind }}
+            </span>
+            <h3>{{ sel.label }}</h3>
+          </div>
+          <button mat-icon-button aria-label="Clear selection" (click)="clearSelection()">
+            <mat-icon>close</mat-icon>
+          </button>
+        </header>
+
+        @if (sel.kind === 'round') {
+          <ul class="detail-grid">
+            <li>
+              <span class="dg-label">Latency</span>
+              <span class="dg-value">{{ fmtLatency(sel.durationMs) }}</span>
+            </li>
+            <li>
+              <span class="dg-label">Cost</span>
+              <span class="dg-value">{{ fmtUsd(sel.costUsd ?? 0) }}</span>
+            </li>
+            <li>
+              <span class="dg-label">Finish</span>
+              <span class="dg-value mono">{{ sel.finishReason }}</span>
+            </li>
+            <li>
+              <span class="dg-label">Model</span>
+              <span class="dg-value mono">{{ sel.model }}</span>
+            </li>
+          </ul>
+
+          @if (sel.usage; as u) {
+            <div class="usage-section">
+              <span class="section-label">Token usage</span>
+              <ul class="usage-rows">
+                <li><span class="ur-dot input"></span> Input <strong>{{ fmtTokens(u.inputTokens) }}</strong></li>
+                <li><span class="ur-dot output"></span> Output <strong>{{ fmtTokens(u.outputTokens) }}</strong></li>
+                <li><span class="ur-dot thinking"></span> Thinking <strong>{{ fmtTokens(u.thoughtTokens) }}</strong></li>
+                <li class="total"><span class="ur-dot total"></span> Total <strong>{{ fmtTokens(u.totalTokens) }}</strong></li>
+              </ul>
+            </div>
+          }
+        }
+
+        @if (sel.kind === 'tool') {
+          <ul class="detail-grid">
+            <li>
+              <span class="dg-label">Duration</span>
+              <span class="dg-value">{{ fmtLatency(sel.durationMs) }}</span>
+            </li>
+            <li>
+              <span class="dg-label">Status</span>
+              <span class="dg-value mono">{{ sel.toolStatus }}</span>
+            </li>
+            <li class="full">
+              <span class="dg-label">Started</span>
+              <span class="dg-value mono">+{{ fmtLatency(sel.startedAt - bounds().startedAt) }}</span>
+            </li>
+          </ul>
+          @if (sel.errorMessage) {
+            <p class="detail-error">{{ sel.errorMessage }}</p>
+          }
+        }
+      </section>
+    }
+  }
+</aside>

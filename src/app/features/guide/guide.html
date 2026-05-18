@@ -1,0 +1,136 @@
+<section class="guide-page">
+  <app-page-header
+    [pulseDot]="true"
+    eyebrow="A four-minute tour"
+    titleStart="Welcome to "
+    [titleAccent]="config.appName"
+    titleEnd="."
+    [subtitle]="config.tagline"
+  >
+    <p class="intro">
+      {{ config.appName }} is an agentic UI built on Angular and Gemini 3.
+      The eight stops below cover every meaningful surface, from the
+      parallel-as-they-settle tool loop to the byte-identical replay engine.
+      Each step ships with a one-click prompt so you can drive the feature
+      yourself.
+    </p>
+
+    <div class="header-actions">
+      <a mat-flat-button color="primary" routerLink="/">
+        <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+        Back to chat
+      </a>
+      <a mat-stroked-button routerLink="/security">
+        <span class="material-symbols-outlined" aria-hidden="true">shield_with_heart</span>
+        Security model
+      </a>
+    </div>
+  </app-page-header>
+
+  <mat-card appearance="outlined" class="card hero-card">
+    <mat-card-content>
+      <span class="hero-eyebrow">Before you begin</span>
+      <p class="lead">
+        Paste a Gemini API key when the chat page prompts you.
+        Atlas holds it in the current tab for the session by default;
+        nothing leaves your browser.
+      </p>
+      <p class="muted">
+        Don't have one? Grab a free key at
+        <a [attr.href]="config.aiStudioApiKeyUrl" target="_blank" rel="noopener noreferrer">aistudio.google.com/app/apikey</a>.
+      </p>
+    </mat-card-content>
+  </mat-card>
+
+  <ol class="step-list">
+    @for (step of steps; track step.index) {
+      <li class="step">
+        <mat-card appearance="outlined" class="card step-card">
+          <mat-card-content>
+            <div class="step-head">
+              <span class="step-index" aria-hidden="true">
+                <span class="step-index-num">{{ step.index }}</span>
+                <span class="step-index-label">Step</span>
+              </span>
+              <div class="step-title-wrap">
+                <h2 class="step-title">{{ step.title }}</h2>
+                <p class="step-demo">{{ step.demonstrates }}</p>
+              </div>
+            </div>
+
+            <ul class="step-details">
+              @for (detail of step.details; track detail) {
+                <li>{{ detail }}</li>
+              }
+            </ul>
+
+            @if (step.watchFor) {
+              <p class="watch-for">
+                <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+                <span><strong>Watch for:</strong> {{ step.watchFor }}</span>
+              </p>
+            }
+
+            <div class="step-actions">
+              @if (step.prompt) {
+                <a
+                  mat-flat-button
+                  color="primary"
+                  [routerLink]="['/']"
+                  [queryParams]="{ prompt: step.prompt }"
+                  class="prompt-link"
+                >
+                  <span class="material-symbols-outlined" aria-hidden="true">play_arrow</span>
+                  Try this prompt
+                </a>
+              }
+              @if (step.action) {
+                <a mat-stroked-button [routerLink]="step.action.link">
+                  <span class="material-symbols-outlined" aria-hidden="true">arrow_outward</span>
+                  {{ step.action.label }}
+                </a>
+              }
+            </div>
+          </mat-card-content>
+        </mat-card>
+      </li>
+    }
+  </ol>
+
+  <section class="deep-dives" aria-label="Deeper dives">
+    <header class="deep-head">
+      <span class="eyebrow eyebrow--muted">
+        <span class="material-symbols-outlined" aria-hidden="true">explore</span>
+        Keep exploring
+      </span>
+      <h2 class="section-title">Take a deeper dive.</h2>
+    </header>
+    <div class="deep-grid">
+      @for (dive of deepDives; track dive.title) {
+        <mat-card appearance="outlined" class="card dive-card">
+          <mat-card-content>
+            <span class="dive-icon" aria-hidden="true">
+              <span class="material-symbols-outlined">{{ dive.icon }}</span>
+            </span>
+            <h3>{{ dive.title }}</h3>
+            <p>{{ dive.body }}</p>
+            <a mat-stroked-button [routerLink]="dive.link">
+              {{ dive.cta }}
+              <span class="material-symbols-outlined" aria-hidden="true">arrow_outward</span>
+            </a>
+          </mat-card-content>
+        </mat-card>
+      }
+    </div>
+  </section>
+
+  <footer class="guide-footer">
+    <p class="muted">
+      Done with the tour?
+      <a routerLink="/">Head back to the chat</a>
+      and try a prompt of your own, or revisit
+      <a routerLink="/about">how Atlas works</a>
+      under the hood.
+    </p>
+  </footer>
+</section>

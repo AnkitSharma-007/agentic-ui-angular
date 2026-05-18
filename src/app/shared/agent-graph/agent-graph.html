@@ -1,0 +1,46 @@
+<section class="agent-graph" aria-label="Active agent">
+  <header class="graph-head">
+    <span class="eyebrow">Agent runtime</span>
+    @if (lastTransition(); as t) {
+      <span class="last-handoff">
+        <mat-icon>arrow_right_alt</mat-icon>
+        Last handoff: <strong>{{ t.reason }}</strong>
+      </span>
+    }
+  </header>
+
+  <div class="nodes">
+    @for (agent of agents(); track agent.id; let i = $index) {
+      @if (i > 0) {
+        <div
+          class="connector"
+          aria-hidden="true"
+          [class.lit]="hasHandedOff()"
+        >
+          <span class="connector-line"></span>
+          <mat-icon class="connector-arrow">arrow_right_alt</mat-icon>
+        </div>
+      }
+      <div
+        class="node"
+        [class.active]="isActive(agent.id)"
+        [style.--accent-1]="agent.accent[0]"
+        [style.--accent-2]="agent.accent[1]"
+      >
+        <div class="node-icon">
+          <mat-icon>{{ agent.icon }}</mat-icon>
+          @if (isActive(agent.id)) {
+            <span class="active-ring" aria-hidden="true"></span>
+          }
+        </div>
+        <div class="node-text">
+          <strong class="node-name">{{ agent.name }}</strong>
+          <span class="node-desc">{{ agent.description }}</span>
+        </div>
+        @if (isActive(agent.id)) {
+          <span class="active-pill">Active</span>
+        }
+      </div>
+    }
+  </div>
+</section>

@@ -1,0 +1,140 @@
+<mat-card class="booking-card" appearance="outlined" [class.pending]="isPending()" [class.confirmed]="isComplete()" [class.rejected]="isRejected()">
+  <mat-card-header>
+    <div class="tool-header-row">
+      <div class="tool-title-block">
+        <span class="material-symbols-outlined tool-icon" aria-hidden="true">
+          @switch (status()) {
+            @case ('pending_approval') { gavel }
+            @case ('running') { pending }
+            @case ('complete') { check_circle }
+            @case ('rejected') { do_not_disturb_on }
+            @case ('error') { error }
+          }
+        </span>
+        <div class="tool-title-text">
+          <span class="tool-name">Flight booking</span>
+          <span class="route">
+            {{ args().airline }} · {{ args().from }} → {{ args().to }} · {{ args().date }}
+          </span>
+        </div>
+      </div>
+
+      @switch (status()) {
+        @case ('pending_approval') {
+          <span class="tool-status pending">awaiting approval</span>
+        }
+        @case ('running') {
+          <span class="tool-status running">booking…</span>
+        }
+        @case ('complete') {
+          <span class="tool-status complete">confirmed</span>
+        }
+        @case ('rejected') {
+          <span class="tool-status rejected">cancelled</span>
+        }
+        @case ('error') {
+          <span class="tool-status error">failed</span>
+        }
+      }
+    </div>
+  </mat-card-header>
+
+  @if (isPending()) {
+    <mat-card-content>
+      @if (interruptReason()) {
+        <p class="reason">{{ interruptReason() }}</p>
+      }
+
+      <dl class="args-grid">
+        <dt>Passenger</dt>
+        <dd>{{ args().passengerName }}</dd>
+        <dt>Flight</dt>
+        <dd>{{ args().flightId }}</dd>
+        <dt>Route</dt>
+        <dd>{{ args().from }} → {{ args().to }}</dd>
+        <dt>Date</dt>
+        <dd>{{ args().date }}</dd>
+        <dt>Fare</dt>
+        <dd class="fare">{{ formatPrice(args().price, args().currency) }}</dd>
+      </dl>
+
+      @if (showRejectNote()) {
+        <mat-form-field appearance="outline" class="reject-note">
+          <mat-label>Why are you rejecting? (optional)</mat-label>
+          <textarea
+            matInput
+            rows="2"
+            [value]="rejectionNote()"
+            (input)="rejectionNote.set($any($event.target).value)"
+            placeholder="The agent will see this and re-plan accordingly."
+          ></textarea>
+        </mat-form-field>
+      }
+    </mat-card-content>
+
+    <mat-card-actions align="end" class="actions">
+      @if (showRejectNote()) {
+        <button mat-stroked-button type="button" (click)="toggleRejectNote()">
+          <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+          Back
+        </button>
+        <button mat-flat-button color="warn" type="button" (click)="confirmReject()">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+          Reject with note
+        </button>
+      } @else {
+        <button mat-stroked-button type="button" color="warn" (click)="toggleRejectNote()">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+          Reject
+        </button>
+        <button mat-flat-button color="primary" type="button" (click)="approve()">
+          <span class="material-symbols-outlined" aria-hidden="true">check</span>
+          Approve & book
+        </button>
+      }
+    </mat-card-actions>
+  }
+
+  @if (isRunning()) {
+    <mat-progress-bar mode="indeterminate" class="tool-card-progress" />
+    <mat-card-content>
+      <p class="working-line">Submitting booking for {{ args().passengerName }}…</p>
+    </mat-card-content>
+  }
+
+  @if (isComplete() && result(); as r) {
+    <mat-card-content>
+      <dl class="args-grid">
+        <dt>Passenger</dt>
+        <dd>{{ r.passengerName }}</dd>
+        <dt>Booking ref</dt>
+        <dd class="booking-ref">{{ r.bookingRef }}</dd>
+        <dt>Flight</dt>
+        <dd>{{ r.flightId }}</dd>
+        <dt>Total charged</dt>
+        <dd class="fare">{{ formatPrice(r.totalCharged, r.currency) }}</dd>
+      </dl>
+    </mat-card-content>
+  }
+
+  @if (isRejected()) {
+    <mat-card-content>
+      <p class="rejected-line">
+        Cancelled by you. The agent saw the rejection
+        @if (interruptReason()) {
+          and the note <em>"{{ interruptReason() }}"</em>,
+        }
+        and will re-plan in its next round.
+      </p>
+    </mat-card-content>
+  }
+
+  @if (isError()) {
+    <mat-card-content>
+      <div class="tool-error-banner">
+        <span class="material-symbols-outlined" aria-hidden="true">error</span>
+        <span>{{ errorMessage() ?? 'Booking failed.' }}</span>
+      </div>
+    </mat-card-content>
+  }
+</mat-card>

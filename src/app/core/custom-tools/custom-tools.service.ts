@@ -1,0 +1,110 @@
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { idbDelete, idbGetAll, idbPut, openDb } from '../storage/indexeddb.helpers';
+import { ToolRegistry } from '../registry/tool-registry';
+import type { ToolManifest } from '../registry/tool-descriptor';
+import { specToDeclaration } from './custom-tool-declaration';
+import type { CustomToolSpec } from './custom-tool.types';
+
+const DB_NAME = 'atlas-custom-tools';
+const DB_VERSION = 1;
+const STORE = 'tools';
+
+@Injectable({ providedIn: 'root' })
+export class CustomToolsService {
+  private readonly registry = inject(ToolRegistry);
+
+  private dbPromise: Promise<IDBDatabase> | null = null;
+  private readonly _specs = signal<readonly CustomToolSpec[]>([]);
+  private readonly _unavailable = signal(false);
+  private readonly _loaded = signal(false);
+
+  readonly specs = this._specs.asReadonly();
+  readonly unavailable = this._unavailable.asReadonly();
+  readonly loaded = this._loaded.asReadonly();
+  readonly count = computed(() => this._specs().length);
+  // Exposed so the agent loop can union user-defined tools into every agent's
+  // declarations — without this, custom tools are silently invisible to the
+  // model whenever the active agent's hard-coded allow-list doesn't list them.
+  readonly customToolNames = computed<ReadonlySet<string>>(
+    () => new Set(this._specs().map((s) => s.name)),
+  );
+
+  async load(): Promise<void> {
+    if (this._loaded()) return;
+    try {
+      const db = await this.db();
+      const stored = await idbGetAll<CustomToolSpec>(db, STORE);
+      const sorted = [...stored].sort(byCreatedDesc);
+      for (const spec of sorted) {
+        this.registry.upsert(this.buildManifest(spec));
+      }
+      this._specs.set(sorted);
+    } catch {
+      this._unavailable.set(true);
+    } finally {
+      this._loaded.set(true);
+    }
+  }
+
+  async save(spec: CustomToolSpec): Promise<void> {
+    const db = await this.db();
+    await idbPut(db, STORE, spec);
+    this._specs.update((list) =>
+      [spec, ...list.filter((s) => s.id !== spec.id)].sort(byCreatedDesc),
+    );
+    this.registry.upsert(this.buildManifest(spec));
+  }
+
+  async delete(id: string): Promise<void> {
+    const existing = this._specs().find((s) => s.id === id);
+    if (!existing) return;
+    const db = await this.db();
+    await idbDelete(db, STORE, id);
+    this._specs.update((list) => list.filter((s) => s.id !== id));
+    this.registry.unregister(existing.name);
+  }
+
+  getById(id: string): CustomToolSpec | undefined {
+    return this._specs().find((s) => s.id === id);
+  }
+
+  isNameInUse(name: string, exceptId?: string): boolean {
+    if (!name) return false;
+    const ownedNames = new Set(this._specs().map((s) => s.name));
+    if (this._specs().some((s) => s.name === name && s.id !== exceptId)) return true;
+    return this.registry.list().some((t) => t.name === name && !ownedNames.has(t.name));
+  }
+
+  private buildManifest(spec: CustomToolSpec): ToolManifest {
+    return {
+      name: spec.name,
+      description: spec.description,
+      declaration: specToDeclaration(spec),
+      load: async () => {
+        const [{ specToDescriptor }, { CustomToolCardComponent }] = await Promise.all([
+          import('./custom-tool-descriptor'),
+          import('../../shared/tools/custom-tool-card/custom-tool-card'),
+        ]);
+        return specToDescriptor(spec, CustomToolCardComponent);
+      },
+    };
+  }
+
+  private db(): Promise<IDBDatabase> {
+    if (!this.dbPromise) {
+      this.dbPromise = openDb(DB_NAME, DB_VERSION, (db) => {
+        if (!db.objectStoreNames.contains(STORE)) {
+          db.createObjectStore(STORE, { keyPath: 'id' });
+        }
+      }).catch((err) => {
+        this._unavailable.set(true);
+        throw err;
+      });
+    }
+    return this.dbPromise;
+  }
+}
+
+function byCreatedDesc(a: CustomToolSpec, b: CustomToolSpec): number {
+  return b.createdAt - a.createdAt;
+}

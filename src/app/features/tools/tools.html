@@ -1,0 +1,266 @@
+<section class="tools-page">
+  <app-page-header
+    icon="extension"
+    eyebrow="Custom tool builder"
+    titleStart="Teach the agent new "
+    titleAccent="skills"
+    titleEnd="."
+    subtitle="Define a tool with a name, parameters, and a response template. The agent will see it on its next turn and can call it like any built-in tool. Specs are saved to your browser. No server round-trip."
+  />
+
+  @if (customTools.unavailable()) {
+    <mat-card appearance="outlined" class="unavailable-card">
+      <mat-card-content>
+        <div class="unavailable-head">
+          <span class="unavailable-icon" aria-hidden="true">
+            <mat-icon>storage</mat-icon>
+          </span>
+          <div class="unavailable-text">
+            <h3>Custom tools unavailable</h3>
+            <p>
+              IndexedDB couldn't be opened in this browser session, so custom
+              tool specs can't be saved or loaded. Private-browsing or strict
+              storage settings are the usual cause. Existing tools won't appear
+              and new ones can't be created until storage is available.
+            </p>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  } @else {
+  <div class="layout">
+    <aside class="list-col">
+      <header class="list-head">
+        <span class="list-title">My tools</span>
+        <span class="list-count">{{ specs().length }}</span>
+      </header>
+
+      <div class="list-actions">
+        <button mat-flat-button color="primary" (click)="startNew()">
+          <mat-icon>add</mat-icon>
+          <span>New tool</span>
+        </button>
+        @if (specs().length === 0) {
+          <button mat-stroked-button (click)="loadExample()">
+            <mat-icon>magic_button</mat-icon>
+            <span>Load example</span>
+          </button>
+        }
+      </div>
+
+      @if (specs().length === 0) {
+        <div class="empty">
+          <mat-icon class="empty-icon">extension</mat-icon>
+          <p class="empty-title">No custom tools yet</p>
+          <p class="empty-sub">
+            Click "New tool" to define one. Try the example to see what a tool
+            spec looks like.
+          </p>
+        </div>
+      } @else {
+        <ul class="list">
+          @for (spec of specs(); track spec.id) {
+            <li class="list-item" [class.active]="editingId() === spec.id">
+              <button class="item-main" (click)="edit(spec)">
+                <code class="item-name">{{ spec.name }}</code>
+                <span class="item-desc">{{ spec.description }}</span>
+                <span class="item-meta">
+                  {{ spec.parameters.length }} param{{ spec.parameters.length === 1 ? '' : 's' }}
+                </span>
+              </button>
+              <button
+                mat-icon-button
+                class="item-delete"
+                aria-label="Delete tool"
+                (click)="delete(spec)"
+              >
+                <mat-icon>delete</mat-icon>
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    </aside>
+
+    <article class="form-col">
+      <header class="form-head">
+        <div class="form-head-text">
+          <span class="form-head-icon" aria-hidden="true">
+            <mat-icon>{{ editingId() ? 'edit' : 'add_circle' }}</mat-icon>
+          </span>
+          <h2 class="form-title">
+            @if (editingId()) {
+              Edit tool
+            } @else {
+              New tool
+            }
+          </h2>
+        </div>
+        @if (justSaved(); as name) {
+          <span class="saved-badge">
+            <mat-icon>check_circle</mat-icon>
+            <code>{{ name }}</code> ready to call
+          </span>
+        }
+      </header>
+
+      <mat-card appearance="outlined" class="form-card">
+        <div class="field">
+          <mat-form-field appearance="outline" class="full">
+            <mat-label>Name</mat-label>
+            <input
+              matInput
+              [ngModel]="name()"
+              (ngModelChange)="name.set($event)"
+              placeholder="searchWeather"
+            />
+            @if (nameError(); as err) {
+              <mat-error>{{ err }}</mat-error>
+            }
+            <mat-hint>Letters, digits, underscores. Used as the function name in API calls.</mat-hint>
+          </mat-form-field>
+        </div>
+
+        <div class="field">
+          <mat-form-field appearance="outline" class="full">
+            <mat-label>Description</mat-label>
+            <textarea
+              matInput
+              rows="2"
+              [ngModel]="description()"
+              (ngModelChange)="description.set($event)"
+              placeholder="Get a weather forecast for a city on a specific date."
+            ></textarea>
+            <mat-hint>The agent reads this to decide when to call the tool. Be specific.</mat-hint>
+          </mat-form-field>
+        </div>
+
+        <div class="params-section">
+          <header class="section-head">
+            <span class="section-label">Parameters</span>
+            <button mat-stroked-button (click)="addParameter()">
+              <mat-icon>add</mat-icon>
+              <span>Add parameter</span>
+            </button>
+          </header>
+
+          @if (parameters().length === 0) {
+            <p class="params-empty">
+              No parameters. Click "Add parameter" or skip. The agent can call this tool with no args.
+            </p>
+          } @else {
+            <ul class="params">
+              @for (param of parameters(); track $index; let i = $index) {
+                <li class="param">
+                  <mat-form-field appearance="outline" class="param-name">
+                    <mat-label>Name</mat-label>
+                    <input
+                      matInput
+                      [ngModel]="param.name"
+                      (ngModelChange)="updateParameterName(i, $event)"
+                      placeholder="city"
+                    />
+                    @if (parameterErrors()[i]; as err) {
+                      <mat-error>{{ err }}</mat-error>
+                    }
+                  </mat-form-field>
+
+                  <mat-form-field appearance="outline" class="param-type">
+                    <mat-label>Type</mat-label>
+                    <mat-select
+                      [ngModel]="param.type"
+                      (ngModelChange)="updateParameterType(i, $event)"
+                    >
+                      @for (opt of typeOptions; track opt.value) {
+                        <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+
+                  <mat-form-field appearance="outline" class="param-desc">
+                    <mat-label>Description</mat-label>
+                    <input
+                      matInput
+                      [ngModel]="param.description"
+                      (ngModelChange)="updateParameterDescription(i, $event)"
+                      placeholder="City name, e.g. Goa"
+                    />
+                  </mat-form-field>
+
+                  <div class="param-controls">
+                    <mat-checkbox
+                      [ngModel]="param.required"
+                      (ngModelChange)="updateParameterRequired(i, $event)"
+                    >
+                      Required
+                    </mat-checkbox>
+                    <button
+                      mat-icon-button
+                      aria-label="Remove parameter"
+                      (click)="removeParameter(i)"
+                    >
+                      <mat-icon>delete</mat-icon>
+                    </button>
+                  </div>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+
+        <div class="field">
+          <header class="section-head">
+            <span class="section-label">Response template</span>
+            <span class="section-hint">JSON · {{ '{{paramName}}' }} placeholders</span>
+          </header>
+          <mat-form-field appearance="outline" class="full mono-field">
+            <mat-label>Template</mat-label>
+            <textarea
+              matInput
+              rows="8"
+              [ngModel]="responseTemplate()"
+              (ngModelChange)="responseTemplate.set($event)"
+            ></textarea>
+          </mat-form-field>
+
+          <div class="preview" [class.error]="!templatePreview().ok">
+            <header class="preview-head">
+              <span class="preview-label">Live preview</span>
+              <span class="preview-meta">
+                @if (templatePreview().ok) {
+                  <mat-icon>check_circle</mat-icon> Valid JSON
+                } @else {
+                  <mat-icon>error</mat-icon> Invalid JSON
+                }
+              </span>
+            </header>
+            <pre class="preview-body">{{ templatePreview().text }}</pre>
+          </div>
+        </div>
+
+        @if (saveError(); as err) {
+          <p class="save-error">{{ err }}</p>
+        }
+
+        <footer class="form-actions">
+          <button mat-stroked-button (click)="startNew()" [disabled]="saving()">
+            <mat-icon>refresh</mat-icon>
+            <span>Reset</span>
+          </button>
+          <button
+            mat-flat-button
+            color="primary"
+            (click)="save()"
+            [disabled]="!canSave() || saving()"
+          >
+            <mat-icon>save</mat-icon>
+            <span>
+              @if (editingId()) { Save changes } @else { Create tool }
+            </span>
+          </button>
+        </footer>
+      </mat-card>
+    </article>
+  </div>
+  }
+</section>

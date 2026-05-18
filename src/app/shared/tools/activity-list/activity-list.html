@@ -1,0 +1,110 @@
+<mat-card class="activity-card" [class.error]="status() === 'error'">
+  <header class="card-head">
+    <div class="head-left">
+      <mat-icon class="head-icon">explore</mat-icon>
+      <div class="head-text">
+        <span class="badge">Activities</span>
+        <h3 class="card-title">
+          @if (city()) {
+            What to do in {{ city() }}
+          } @else {
+            Activity finder
+          }
+        </h3>
+      </div>
+    </div>
+    <span
+      class="status"
+      [class.running]="status() === 'running'"
+      [class.pending]="isPending()"
+      [class.rejected]="isRejected()"
+    >
+      @if (status() === 'running') {
+        <span class="dot"></span> Searching
+      } @else if (status() === 'complete') {
+        <mat-icon>check_circle</mat-icon> {{ activities().length }} found
+      } @else if (status() === 'error') {
+        <mat-icon>error</mat-icon> Error
+      } @else if (isPending()) {
+        <mat-icon>pending</mat-icon> awaiting approval
+      } @else if (isRejected()) {
+        <mat-icon>do_not_disturb_on</mat-icon> cancelled
+      }
+    </span>
+  </header>
+
+  @if (isPending()) {
+    <div class="tool-pending-banner">
+      <span class="material-symbols-outlined" aria-hidden="true">pending</span>
+      <span>{{ interruptReason() ?? 'Waiting for your approval to look up activities.' }}</span>
+    </div>
+  }
+
+  @if (isRejected()) {
+    <div class="tool-rejected-banner">
+      <span class="material-symbols-outlined" aria-hidden="true">do_not_disturb_on</span>
+      <span>{{ interruptReason() ?? 'Activity search cancelled.' }}</span>
+    </div>
+  }
+
+  @if (status() === 'complete' && activities().length > 0) {
+    <ul class="activities">
+      @for (a of activities(); track a.name; let i = $index) {
+        <li class="activity" [class.highlight]="a.highlight" [style.--i]="i">
+          <div class="activity-icon">
+            <mat-icon>{{ iconFor(a.category) }}</mat-icon>
+          </div>
+          <div class="activity-body">
+            <header class="activity-head">
+              <h4 class="activity-name">
+                {{ a.name }}
+                @if (a.highlight) {
+                  <span class="featured-pill">
+                    <mat-icon>star</mat-icon> Editor's pick
+                  </span>
+                }
+              </h4>
+              <span class="activity-category">{{ a.category }}</span>
+            </header>
+            <p class="activity-desc">{{ a.description }}</p>
+            <footer class="activity-meta">
+              <span class="meta-item rating">
+                @for (s of stars(a.rating); track $index) {
+                  <mat-icon class="star {{ s }}">
+                    @if (s === 'full') { star }
+                    @else if (s === 'half') { star_half }
+                    @else { star_border }
+                  </mat-icon>
+                }
+                <span class="rating-text">{{ a.rating.toFixed(1) }}</span>
+              </span>
+              <span class="meta-item">
+                <mat-icon>schedule</mat-icon>
+                {{ a.durationHours }}h
+              </span>
+              <span class="meta-item">
+                <mat-icon>payments</mat-icon>
+                {{ a.priceRange }}
+              </span>
+              <span class="meta-item best-time">
+                <mat-icon>auto_awesome</mat-icon>
+                {{ a.bestTime }}
+              </span>
+            </footer>
+          </div>
+        </li>
+      }
+    </ul>
+
+    @if (totalHours() > 0) {
+      <footer class="card-foot">
+        <mat-icon>schedule</mat-icon>
+        ~{{ totalHours().toFixed(1) }}h total · {{ activities().length }} activit{{ activities().length === 1 ? 'y' : 'ies' }}
+      </footer>
+    }
+  }
+
+  @if (status() === 'error' && errorMessage()) {
+    <p class="error-message">{{ errorMessage() }}</p>
+  }
+</mat-card>

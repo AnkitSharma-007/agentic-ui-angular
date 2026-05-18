@@ -1,0 +1,324 @@
+@if (!apiKey.hasKey()) {
+  <app-onboarding (ready)="onOnboardingReady()" />
+} @else {
+  <div class="home">
+    @if (!hasOutput() && phase() === 'idle' && !isReplaying()) {
+      <section class="hero">
+        <div class="orb orb-a" aria-hidden="true"></div>
+        <div class="orb orb-b" aria-hidden="true"></div>
+        <div class="orb orb-c" aria-hidden="true"></div>
+
+        <div class="hero-inner">
+          <span class="eyebrow">
+            <span class="pulse-dot" aria-hidden="true"></span>
+            Live · streaming pipeline online
+          </span>
+          <h1>
+            Agents that build
+            <br />
+            <span class="grad">their own UI.</span>
+          </h1>
+          <p class="hero-sub">
+            Gemini reasons, Atlas renders. Every tool call materialises as an
+            interactive Angular component (flights, hotels, maps, comparisons)
+            in real time, with full human-in-the-loop control.
+          </p>
+        </div>
+      </section>
+
+      @if (showTourBanner()) {
+        <aside class="tour-banner" role="note" aria-label="Atlas tour">
+          <span class="tour-icon material-symbols-outlined" aria-hidden="true">explore</span>
+          <div class="tour-text">
+            <strong>First visit? Atlas can show you around.</strong>
+            <span class="muted">A four-minute tour of every feature, with one-click prompts.</span>
+          </div>
+          <div class="tour-actions">
+            <a mat-flat-button color="primary" routerLink="/guide">
+              <span class="material-symbols-outlined" aria-hidden="true">arrow_outward</span>
+              Take the tour
+            </a>
+            <button
+              mat-icon-button
+              type="button"
+              class="tour-dismiss"
+              aria-label="Dismiss tour banner"
+              title="Dismiss"
+              (click)="dismissTourBanner()"
+            >
+              <span class="material-symbols-outlined" aria-hidden="true">close</span>
+            </button>
+          </div>
+        </aside>
+      }
+
+      <section class="samples" aria-label="Sample prompts">
+        <div class="samples-header">
+          <span class="eyebrow eyebrow--muted">
+            <span class="material-symbols-outlined" aria-hidden="true">rocket_launch</span>
+            Get started
+          </span>
+          <a mat-stroked-button routerLink="/library" class="library-link">
+            <span class="material-symbols-outlined" aria-hidden="true">video_library</span>
+            Saved runs
+            @if (replays.count() > 0) {
+              <span class="library-count">{{ replays.count() }}</span>
+            }
+          </a>
+        </div>
+
+        <div class="sample-grid">
+          @for (s of samplePrompts; track s.text; let i = $index) {
+            <button
+              type="button"
+              class="sample-card"
+              [style.--i]="i"
+              (click)="useSamplePrompt(s.text)"
+            >
+              <span class="sample-icon" aria-hidden="true">
+                <span class="material-symbols-outlined">{{ s.icon }}</span>
+              </span>
+              <span class="sample-body">
+                <span class="sample-label">{{ s.label }}</span>
+                <span class="sample-text">{{ s.text }}</span>
+              </span>
+              <span class="material-symbols-outlined sample-arrow" aria-hidden="true">arrow_outward</span>
+            </button>
+          }
+        </div>
+      </section>
+    }
+
+    @if (activeReplayId()) {
+      <section class="replay-banner" role="status" aria-live="polite">
+        <div class="replay-meta">
+          <span class="material-symbols-outlined replay-icon" aria-hidden="true">
+            {{ isReplaying() ? 'play_circle' : 'replay_circle_filled' }}
+          </span>
+          <div class="replay-text">
+            @if (isReplaying()) {
+              <strong>Replaying saved run</strong>
+              <span class="muted">Events are re-emitted with original timing.</span>
+            } @else if (phase() === 'complete') {
+              <strong>Replay complete</strong>
+              <span class="muted">Restart to play again, or Clear to exit replay mode.</span>
+            } @else {
+              <strong>Replay stopped</strong>
+              <span class="muted">Restart to play again, or Clear to exit replay mode.</span>
+            }
+          </div>
+        </div>
+
+        <div class="replay-controls">
+          <span class="speed-label">Speed</span>
+          <div class="speed-pills" role="group" aria-label="Replay speed">
+            @for (s of speedOptions; track s) {
+              <button
+                type="button"
+                class="speed-pill"
+                [class.active]="replaySpeed() === s"
+                (click)="setSpeed(s)"
+                [attr.aria-pressed]="replaySpeed() === s"
+              >{{ s }}×</button>
+            }
+          </div>
+          @if (isReplaying()) {
+            <button mat-stroked-button type="button" color="warn" (click)="cancel()">
+              <span class="material-symbols-outlined" aria-hidden="true">stop</span>
+              Stop
+            </button>
+          } @else {
+            <button mat-flat-button type="button" color="primary" (click)="restart()">
+              <span class="material-symbols-outlined" aria-hidden="true">replay</span>
+              Restart
+            </button>
+          }
+        </div>
+      </section>
+    }
+
+    @if (isStreaming() || hasOutput()) {
+      <app-agent-graph />
+    }
+
+    <app-thought />
+
+    @if (phase() === 'streaming' && responseText().length === 0 && toolCalls().length === 0) {
+      <div class="streaming-indicator" role="status" aria-live="polite">
+        <div class="pulse-bars" aria-hidden="true">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <div class="streaming-text">
+          <strong>Atlas is thinking…</strong>
+          <span class="muted">
+            chunks {{ stats().chunks }} · parts {{ stats().parts }}
+            @if (stats().signedParts > 0) { · signed {{ stats().signedParts }} }
+          </span>
+        </div>
+      </div>
+    }
+
+    @if (displayedToolCalls().length > 0) {
+      <section class="tool-calls" aria-label="Tool calls">
+        @for (call of displayedToolCalls(); track call.callId; let i = $index) {
+          <div class="tool-slot" [style.--i]="i">
+            @if (componentFor(call); as component) {
+              <ng-container
+                *ngComponentOutlet="component; inputs: inputsFor(call)"
+              />
+            } @else if (registry.hasFailed(call.name)) {
+              <div class="tool-unknown" role="status" aria-live="polite">
+                <span class="material-symbols-outlined" aria-hidden="true">error</span>
+                <span>Failed to load <code>{{ call.name }}</code> module. Reload to retry.</span>
+              </div>
+            } @else if (registry.get(call.name)) {
+              <div class="tool-loading" role="status" aria-live="polite">
+                <span class="material-symbols-outlined spinning" aria-hidden="true">progress_activity</span>
+                <span>Loading <code>{{ call.name }}</code> module…</span>
+              </div>
+            } @else {
+              <div class="tool-unknown">
+                <span class="material-symbols-outlined" aria-hidden="true">help</span>
+                <span>No component registered for <code>{{ call.name }}</code>.</span>
+              </div>
+            }
+          </div>
+        }
+      </section>
+    }
+
+    @if (responseText().length > 0) {
+      <mat-card appearance="outlined" class="response-card">
+        <mat-card-content>
+          <app-markdown [source]="responseText()" />
+        </mat-card-content>
+      </mat-card>
+    }
+
+    @if (phase() === 'error' && errorMessage()) {
+      <div class="banner error">
+        <span class="material-symbols-outlined" aria-hidden="true">error</span>
+        {{ errorMessage() }}
+      </div>
+    }
+
+    @if (phase() === 'cancelled') {
+      <div class="banner info">
+        <span class="material-symbols-outlined" aria-hidden="true">cancel</span>
+        Stream cancelled.
+      </div>
+    }
+
+    @if (budgetBreachKind(); as kind) {
+      <div class="banner budget-breach" role="alert">
+        <span class="material-symbols-outlined" aria-hidden="true">shield_with_heart</span>
+        <div>
+          <strong>Budget breached.</strong>
+          The agent loop stopped after hitting the <code>{{ kind }}</code> cap.
+          <a routerLink="/settings">Adjust budget</a>
+        </div>
+      </div>
+    }
+
+    @if (phase() === 'complete' || phase() === 'cancelled' || phase() === 'error') {
+      <p class="stats">
+        <span class="material-symbols-outlined" aria-hidden="true">data_check</span>
+        chunks {{ stats().chunks }} · parts {{ stats().parts }} · signed {{ stats().signedParts }}
+      </p>
+    }
+
+    <form class="composer-form" (submit)="$event.preventDefault(); send()">
+      @if (!isStreaming() && (canSave() || hasOutput())) {
+        <div class="composer-secondary-actions">
+          @if (canSave()) {
+            <button
+              mat-stroked-button
+              type="button"
+              [disabled]="saveStatus() === 'saving' || saveStatus() === 'saved'"
+              (click)="save()"
+            >
+              @switch (saveStatus()) {
+                @case ('saving') {
+                  <span class="material-symbols-outlined" aria-hidden="true">progress_activity</span>
+                  Saving…
+                }
+                @case ('saved') {
+                  <span class="material-symbols-outlined" aria-hidden="true">check</span>
+                  Saved
+                }
+                @case ('error') {
+                  <span class="material-symbols-outlined" aria-hidden="true">error</span>
+                  Save failed, retry
+                }
+                @default {
+                  <span class="material-symbols-outlined" aria-hidden="true">save</span>
+                  Save run
+                }
+              }
+            </button>
+          }
+          @if (hasOutput()) {
+            <button mat-stroked-button type="button" (click)="reset()">
+              <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
+              Clear
+            </button>
+          }
+        </div>
+      }
+
+      <div
+        class="composer"
+        [class.is-streaming]="isStreaming()"
+        [class.is-disabled]="isStreaming()"
+      >
+        <textarea
+          #promptArea
+          class="composer-input"
+          rows="3"
+          [value]="prompt()"
+          (input)="prompt.set($any($event.target).value)"
+          (keydown.meta.enter)="canSend() && send()"
+          (keydown.control.enter)="canSend() && send()"
+          [disabled]="isStreaming()"
+          placeholder="Ask anything…"
+          aria-label="Prompt"
+        ></textarea>
+
+        <div class="composer-footer">
+          <div class="composer-hints">
+            <span class="kbd-hint" aria-hidden="true">
+              <kbd>{{ sendShortcutModifier }}</kbd>
+              <kbd>↵</kbd>
+              <span class="kbd-hint-label">to send</span>
+            </span>
+            @if (prompt().length > 0) {
+              <span class="char-count">{{ prompt().length }} chars</span>
+            }
+          </div>
+
+          @if (isStreaming()) {
+            <button
+              type="button"
+              class="send-btn send-btn--cancel"
+              (click)="cancel()"
+              title="Cancel"
+              aria-label="Cancel streaming"
+            >
+              <span class="material-symbols-outlined" aria-hidden="true">stop</span>
+            </button>
+          } @else {
+            <button
+              type="submit"
+              class="send-btn"
+              [disabled]="!canSend()"
+              [title]="sendShortcutModifier + ' + Enter to send'"
+              aria-label="Send prompt"
+            >
+              <span class="material-symbols-outlined" aria-hidden="true">arrow_upward</span>
+            </button>
+          }
+        </div>
+      </div>
+    </form>
+  </div>
+}

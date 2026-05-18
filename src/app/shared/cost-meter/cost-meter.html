@@ -1,0 +1,186 @@
+<div class="cost-meter">
+  <button
+    type="button"
+    class="pill"
+    [class.streaming]="isStreaming()"
+    [attr.aria-expanded]="expanded()"
+    aria-label="Cost meter: live LLM spend"
+    title="Live LLM spend, click to expand"
+    (click)="toggle()"
+  >
+    <span class="pill-dot" aria-hidden="true"></span>
+    <span class="pill-cost">{{ pillCost() }}</span>
+    <span class="pill-sep">·</span>
+    <span class="pill-tokens">{{ pillTokens() }} tok</span>
+    @if (turnRounds() > 0) {
+      <span class="pill-sep">·</span>
+      <span class="pill-rounds">{{ turnRounds() }}r</span>
+    }
+    <mat-icon class="pill-chev" aria-hidden="true">
+      {{ expanded() ? 'expand_less' : 'expand_more' }}
+    </mat-icon>
+  </button>
+
+  @if (expanded()) {
+    <section
+      class="panel"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Cost meter details"
+      cdkTrapFocus
+      [cdkTrapFocusAutoCapture]="true"
+    >
+      <header class="panel-head">
+        <div class="panel-title">
+          <span class="panel-eyebrow">Live LLM cost</span>
+          <strong class="panel-cost">{{ fmtUsd(turnCost()) }}</strong>
+        </div>
+        <button mat-icon-button class="close-btn" aria-label="Close" (click)="close()">
+          <mat-icon>close</mat-icon>
+        </button>
+      </header>
+
+      <div class="metrics-row">
+        <div class="metric">
+          <span class="metric-label">Total tokens</span>
+          <strong class="metric-value">{{ fmtTokens(turnUsage().totalTokens) }}</strong>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Rounds</span>
+          <strong class="metric-value">{{ turnRounds() }}</strong>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Latency</span>
+          <strong class="metric-value">{{ fmtLatency(turnLatencyMs()) }}</strong>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head">
+          <span class="section-label">Cost breakdown</span>
+          <span class="section-meta">{{ model() }}</span>
+        </div>
+        <div class="stacked-bar" aria-hidden="true">
+          <span
+            class="stack-seg input"
+            [style.width.%]="costBreakdown().input.pct"
+          ></span>
+          <span
+            class="stack-seg output"
+            [style.width.%]="costBreakdown().output.pct"
+          ></span>
+          <span
+            class="stack-seg thinking"
+            [style.width.%]="costBreakdown().thinking.pct"
+          ></span>
+        </div>
+        <ul class="legend">
+          <li><span class="dot input"></span> Input <strong>{{ fmtUsd(costBreakdown().input.cost) }}</strong></li>
+          <li><span class="dot output"></span> Output <strong>{{ fmtUsd(costBreakdown().output.cost) }}</strong></li>
+          <li><span class="dot thinking"></span> Thinking <strong>{{ fmtUsd(costBreakdown().thinking.cost) }}</strong></li>
+        </ul>
+      </div>
+
+      <div class="section">
+        <div class="section-head">
+          <span class="section-label">Token breakdown</span>
+        </div>
+        <ul class="rows">
+          <li>
+            <span class="row-label"><span class="dot input"></span> Input</span>
+            <span class="row-value">{{ fmtTokens(turnUsage().inputTokens) }}</span>
+          </li>
+          <li>
+            <span class="row-label"><span class="dot output"></span> Output</span>
+            <span class="row-value">{{ fmtTokens(turnUsage().outputTokens) }}</span>
+          </li>
+          <li>
+            <span class="row-label"><span class="dot thinking"></span> Thinking</span>
+            <span class="row-value">{{ fmtTokens(turnUsage().thoughtTokens) }}</span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="section">
+        <div class="section-head">
+          <span class="section-label">Context window</span>
+          <span class="section-meta">{{ fmtTokens(pricing().contextWindow) }}</span>
+        </div>
+        <div class="bar" aria-hidden="true">
+          <span class="bar-fill" [style.width.%]="contextUtilisation() * 100"></span>
+        </div>
+        <p class="hint">{{ fmtPct(contextUtilisation()) }} of context used</p>
+      </div>
+
+      @if (hasBudget()) {
+        <div class="section budget">
+          <div class="section-head">
+            <span class="section-label">Budget</span>
+            <a class="section-link" routerLink="/settings" (click)="close()">Configure</a>
+          </div>
+          @if (budgetUtilisation().tokens !== null) {
+            <div class="budget-row">
+              <span class="budget-label">Tokens</span>
+              <div class="bar" aria-hidden="true">
+                <span
+                  class="bar-fill"
+                  [class.warn]="(budgetUtilisation().tokens ?? 0) > 0.75"
+                  [class.danger]="(budgetUtilisation().tokens ?? 0) >= 1"
+                  [style.width.%]="(budgetUtilisation().tokens ?? 0) * 100"
+                ></span>
+              </div>
+              <span class="budget-pct">{{ fmtPct(budgetUtilisation().tokens ?? 0) }}</span>
+            </div>
+          }
+          @if (budgetUtilisation().rounds !== null) {
+            <div class="budget-row">
+              <span class="budget-label">Rounds</span>
+              <div class="bar" aria-hidden="true">
+                <span
+                  class="bar-fill"
+                  [class.warn]="(budgetUtilisation().rounds ?? 0) > 0.75"
+                  [class.danger]="(budgetUtilisation().rounds ?? 0) >= 1"
+                  [style.width.%]="(budgetUtilisation().rounds ?? 0) * 100"
+                ></span>
+              </div>
+              <span class="budget-pct">{{ fmtPct(budgetUtilisation().rounds ?? 0) }}</span>
+            </div>
+          }
+          @if (budgetUtilisation().cost !== null) {
+            <div class="budget-row">
+              <span class="budget-label">Cost</span>
+              <div class="bar" aria-hidden="true">
+                <span
+                  class="bar-fill"
+                  [class.warn]="(budgetUtilisation().cost ?? 0) > 0.75"
+                  [class.danger]="(budgetUtilisation().cost ?? 0) >= 1"
+                  [style.width.%]="(budgetUtilisation().cost ?? 0) * 100"
+                ></span>
+              </div>
+              <span class="budget-pct">{{ fmtPct(budgetUtilisation().cost ?? 0) }}</span>
+            </div>
+          }
+        </div>
+      }
+
+      <button
+        type="button"
+        class="dashboard-btn"
+        (click)="openDashboard()"
+      >
+        <mat-icon>monitoring</mat-icon>
+        <span>Open observability dashboard</span>
+        <mat-icon class="arrow">arrow_forward</mat-icon>
+      </button>
+
+      <footer class="panel-foot">
+        <span class="foot-label">Lifetime</span>
+        <span class="foot-value">{{ fmtUsd(lifetimeCost()) }}</span>
+        <span class="foot-sep">·</span>
+        <span class="foot-tokens">{{ fmtTokens(lifetimeTotals().totalTokens) }} tok</span>
+        <span class="foot-sep">·</span>
+        <span class="foot-rounds">{{ lifetimeRounds() }} rounds</span>
+      </footer>
+    </section>
+  }
+</div>

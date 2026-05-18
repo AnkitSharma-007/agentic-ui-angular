@@ -1,0 +1,29 @@
+@if (hasContent()) {
+  <mat-expansion-panel
+    class="thought-panel"
+    [expanded]="expanded()"
+    (expandedChange)="expanded.set($event)"
+  >
+    <mat-expansion-panel-header collapsedHeight="56px" expandedHeight="56px">
+      <mat-panel-title>
+        <span class="material-symbols-outlined icon" aria-hidden="true">psychology</span>
+        @if (isLive()) {
+          <span class="title-text">Thinking…</span>
+        } @else {
+          <span class="title-text">Thought summary</span>
+        }
+      </mat-panel-title>
+      <mat-panel-description>
+        <span class="char-count">{{ charCount() }} chars</span>
+      </mat-panel-description>
+    </mat-expansion-panel-header>
+
+    <div class="thought-body">
+      <app-markdown [source]="text()" />
+    </div>
+
+    @if (isLive()) {
+      <mat-progress-bar mode="indeterminate" class="thought-progress" />
+    }
+  </mat-expansion-panel>
+}

@@ -1,0 +1,116 @@
+<mat-card
+  class="comparison-card"
+  appearance="outlined"
+  [class.pending]="isPending()"
+  [class.settled]="isSettled()"
+  [class.rejected]="isRejected()"
+>
+  <mat-card-header>
+    <div class="tool-header-row">
+      <div class="tool-title-block">
+        <span class="material-symbols-outlined tool-icon" aria-hidden="true">
+          @switch (status()) {
+            @case ('pending_approval') { fact_check }
+            @case ('running') { check_circle }
+            @case ('complete') { check_circle }
+            @case ('error') { error }
+            @case ('rejected') { do_not_disturb_on }
+          }
+        </span>
+        <div class="tool-title-text">
+          <span class="tool-name">Your choice</span>
+          <span class="context">{{ args().context }}</span>
+        </div>
+      </div>
+
+      @switch (status()) {
+        @case ('pending_approval') {
+          <span class="tool-status pending">your pick</span>
+        }
+        @case ('running') {
+          <span class="tool-status complete">chosen</span>
+        }
+        @case ('complete') {
+          <span class="tool-status complete">chosen</span>
+        }
+        @case ('error') {
+          <span class="tool-status error">failed</span>
+        }
+        @case ('rejected') {
+          <span class="tool-status rejected">cancelled</span>
+        }
+      }
+    </div>
+  </mat-card-header>
+
+  @if (isError()) {
+    <mat-card-content>
+      <div class="tool-error-banner">
+        <span class="material-symbols-outlined" aria-hidden="true">error</span>
+        <span>{{ errorMessage() ?? 'Selection failed.' }}</span>
+      </div>
+    </mat-card-content>
+  } @else if (isRejected()) {
+    <mat-card-content>
+      <div class="tool-rejected-banner">
+        <span class="material-symbols-outlined" aria-hidden="true">do_not_disturb_on</span>
+        <span>{{ interruptReason() ?? 'Selection cancelled.' }}</span>
+      </div>
+    </mat-card-content>
+  } @else {
+    @if (args().instruction; as instruction) {
+      <mat-card-content>
+        <p class="instruction">{{ instruction }}</p>
+      </mat-card-content>
+    }
+
+    <mat-card-content class="options-content">
+      <ul class="options" role="list">
+        @for (option of args().options; track option.id) {
+          <li
+            class="option"
+            [class.chosen]="chosenId() === option.id"
+            [class.dimmed]="isSettled() && chosenId() !== option.id"
+          >
+            @if (option.highlight) {
+              <span class="badge">{{ option.highlight }}</span>
+            }
+            <div class="option-head">
+              <div class="option-title-block">
+                <h3 class="option-title">{{ option.title }}</h3>
+                @if (option.subtitle) {
+                  <p class="option-subtitle">{{ option.subtitle }}</p>
+                }
+              </div>
+              @if (chosenId() === option.id) {
+                <span class="material-symbols-outlined chosen-icon" aria-hidden="true">
+                  check_circle
+                </span>
+              }
+            </div>
+
+            @if (option.details.length > 0) {
+              <dl class="option-details">
+                @for (detail of option.details; track detail.label) {
+                  <div class="detail-row">
+                    <dt>{{ detail.label }}</dt>
+                    <dd>{{ detail.value }}</dd>
+                  </div>
+                }
+              </dl>
+            }
+
+            @if (isPending()) {
+              <div class="option-action">
+                <button mat-flat-button color="primary" type="button" (click)="choose(option)">
+                  <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span>
+                  Choose this
+                </button>
+              </div>
+            }
+          </li>
+        }
+      </ul>
+    </mat-card-content>
+  }
+</mat-card>

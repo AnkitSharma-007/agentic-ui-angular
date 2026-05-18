@@ -1,0 +1,110 @@
+<mat-card
+  class="map-card"
+  appearance="outlined"
+  [class.running]="isRunning()"
+  [class.complete]="isComplete()"
+>
+  <mat-card-header>
+    <div class="tool-header-row">
+      <div class="tool-title-block">
+        <span class="material-symbols-outlined tool-icon" aria-hidden="true">
+          @switch (status()) {
+            @case ('pending_approval') { pending }
+            @case ('running') { pin_drop }
+            @case ('complete') { map }
+            @case ('error') { error }
+            @case ('rejected') { do_not_disturb_on }
+          }
+        </span>
+        <div class="tool-title-text">
+          <span class="tool-name">Trip map</span>
+          <span class="trip-title">{{ args().title }}</span>
+        </div>
+      </div>
+
+      @switch (status()) {
+        @case ('pending_approval') {
+          <span class="tool-status pending">awaiting approval</span>
+        }
+        @case ('running') {
+          <span class="tool-status running">rendering…</span>
+        }
+        @case ('complete') {
+          <span class="tool-status complete">
+            {{ waypointCount() }} {{ waypointCount() === 1 ? 'stop' : 'stops' }}
+          </span>
+        }
+        @case ('error') {
+          <span class="tool-status error">failed</span>
+        }
+        @case ('rejected') {
+          <span class="tool-status rejected">cancelled</span>
+        }
+      }
+    </div>
+  </mat-card-header>
+
+  @if (isPending()) {
+    <mat-card-content>
+      <div class="tool-pending-banner">
+        <span class="material-symbols-outlined" aria-hidden="true">pending</span>
+        <span>{{ interruptReason() ?? 'Waiting for your approval to render the map.' }}</span>
+      </div>
+    </mat-card-content>
+  }
+
+  @if (isRejected()) {
+    <mat-card-content>
+      <div class="tool-rejected-banner">
+        <span class="material-symbols-outlined" aria-hidden="true">do_not_disturb_on</span>
+        <span>{{ interruptReason() ?? 'Map render cancelled.' }}</span>
+      </div>
+    </mat-card-content>
+  }
+
+  @if (isRunning()) {
+    <mat-progress-bar mode="indeterminate" class="tool-card-progress" />
+    <mat-card-content>
+      <div class="skeleton-map" aria-hidden="true"></div>
+    </mat-card-content>
+  }
+
+  @if (isComplete() && result(); as r) {
+    <mat-card-content class="map-content">
+      @defer (on viewport) {
+        <app-map-canvas [waypoints]="r.waypoints" [title]="r.title" />
+      } @placeholder (minimum 100ms) {
+        <div class="skeleton-map" aria-hidden="true">
+          <span class="skeleton-hint">Scroll into view to load map…</span>
+        </div>
+      } @loading (after 100ms; minimum 300ms) {
+        <div class="skeleton-map loading-map" aria-hidden="true">
+          <mat-progress-bar mode="indeterminate" class="tool-card-progress" />
+          <span class="skeleton-hint">Loading Leaflet…</span>
+        </div>
+      } @error {
+        <div class="tool-error-banner">
+          <span class="material-symbols-outlined" aria-hidden="true">error</span>
+          <span>Map module failed to load.</span>
+        </div>
+      }
+
+      <p class="legend">
+        @for (kind of ['origin', 'destination', 'stay', 'stop']; track kind) {
+          <span class="legend-item" [attr.data-kind]="kind">
+            <span class="legend-dot"></span>{{ kind }}
+          </span>
+        }
+      </p>
+    </mat-card-content>
+  }
+
+  @if (isError()) {
+    <mat-card-content>
+      <div class="tool-error-banner">
+        <span class="material-symbols-outlined" aria-hidden="true">error</span>
+        <span>{{ errorMessage() ?? 'Failed to render itinerary.' }}</span>
+      </div>
+    </mat-card-content>
+  }
+</mat-card>

@@ -1,0 +1,111 @@
+<section class="security-page">
+  <app-page-header
+    icon="lock"
+    eyebrow="Trust model"
+    titleStart="Your key. Your "
+    titleAccent="browser"
+    titleEnd="."
+    [subtitle]="'How ' + config.appName + ' handles your Gemini API key, end to end.'"
+  />
+
+  <mat-card appearance="outlined" class="card hero-card">
+    <mat-card-content>
+      <span class="hero-eyebrow">Headline guarantee</span>
+      <div class="hero-row">
+        <span class="card-head-icon hero-icon">
+          <mat-icon>cloud_off</mat-icon>
+        </span>
+        <div class="hero-text">
+          <h2>Pure frontend. No backend.</h2>
+          <p>
+            The app runs entirely in your browser and calls
+            <code>{{ config.geminiEndpoint }}</code> directly using the key you
+            provide. There is no server in the middle to log, leak, or invoice.
+          </p>
+        </div>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <div class="cards">
+    <mat-card appearance="outlined" class="card">
+      <mat-card-content>
+        <div class="card-head">
+          <span class="card-head-icon">
+            <mat-icon>vpn_key</mat-icon>
+          </span>
+          <div class="card-head-text">
+            <h3>Where your key lives</h3>
+            <p>Two storage modes, both local to your device.</p>
+          </div>
+        </div>
+        <ul class="storage-list">
+          <li>
+            <span class="li-badge li-badge--default">Default</span>
+            <div>
+              <strong>Session-only.</strong> Held in memory and
+              <code>sessionStorage</code> for the active tab. Wiped when you
+              close the tab.
+            </div>
+          </li>
+          <li>
+            <span class="li-badge li-badge--optin">Opt-in</span>
+            <div>
+              <strong>Encrypted on this device.</strong> Encrypted with a
+              passphrase via WebCrypto AES-GCM (PBKDF2-derived key, SHA-256,
+              250 000 iterations) and stored in <code>localStorage</code>.
+              The passphrase never leaves your browser.
+            </div>
+          </li>
+        </ul>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card appearance="outlined" class="card">
+      <mat-card-content>
+        <div class="card-head">
+          <span class="card-head-icon">
+            <mat-icon>shield</mat-icon>
+          </span>
+          <div class="card-head-text">
+            <h3>Where your key is never sent</h3>
+            <p>The outbound traffic budget is short.</p>
+          </div>
+        </div>
+        <ul class="check-list">
+          <li>
+            <mat-icon aria-hidden="true">check_circle</mat-icon>
+            No backend, so no transit to a server we control.
+          </li>
+          <li>
+            <mat-icon aria-hidden="true">check_circle</mat-icon>
+            No third-party analytics, logging, or telemetry endpoints.
+          </li>
+          <li>
+            <mat-icon aria-hidden="true">check_circle</mat-icon>
+            No third-party scripts at runtime, beyond Google Fonts.
+          </li>
+        </ul>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card appearance="outlined" class="card">
+      <mat-card-content>
+        <div class="card-head">
+          <span class="card-head-icon">
+            <mat-icon>troubleshoot</mat-icon>
+          </span>
+          <div class="card-head-text">
+            <h3>Verify it yourself</h3>
+            <p>Trust, but inspect.</p>
+          </div>
+        </div>
+        <p class="card-body-text">
+          Open your browser's Network panel while using {{ config.appName }}.
+          You'll see requests only to <code>{{ config.geminiEndpoint }}</code>.
+          No analytics beacons, no telemetry, no surprise hops.
+        </p>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</section>

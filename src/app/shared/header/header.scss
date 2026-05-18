@@ -1,0 +1,110 @@
+:host {
+  display: block;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 1rem;
+  background-color: color-mix(in srgb, var(--mat-sys-surface) 78%, transparent);
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  color: var(--mat-sys-on-surface);
+  border-bottom: 1px solid color-mix(in srgb, var(--mat-sys-outline-variant) 75%, transparent);
+  height: 60px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--mat-sys-on-surface);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+  font-family: var(--font-sans);
+
+  &:hover {
+    text-decoration: none;
+
+    .brand-mark {
+      transform: rotate(-4deg) scale(1.05);
+    }
+  }
+}
+
+.brand-mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  filter: drop-shadow(0 4px 10px color-mix(in srgb, var(--mat-sys-primary) 35%, transparent));
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.brand-name {
+  display: none;
+
+  @media (min-width: 480px) {
+    display: inline;
+  }
+}
+
+.primary-nav {
+  display: none;
+  align-items: center;
+  gap: 0.1rem;
+  margin-left: 0.75rem;
+
+  @media (min-width: 720px) {
+    display: inline-flex;
+  }
+
+  a[mat-button] {
+    font-size: 13.5px;
+    font-weight: 500;
+    letter-spacing: -0.005em;
+    color: var(--mat-sys-on-surface-variant);
+
+    &.active {
+      color: var(--mat-sys-primary);
+      font-weight: 600;
+    }
+
+    &:hover:not(.active) {
+      color: var(--mat-sys-on-surface);
+    }
+  }
+}
+
+.mobile-nav-toggle {
+  display: inline-flex;
+
+  @media (min-width: 720px) {
+    display: none;
+  }
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.check {
+  margin-left: auto;
+  font-size: 18px;
+  color: var(--mat-sys-primary);
+}
+
+button[mat-menu-item].active,
+a[mat-menu-item].active {
+  color: var(--mat-sys-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-mark {
+    transition: none;
+  }
+}

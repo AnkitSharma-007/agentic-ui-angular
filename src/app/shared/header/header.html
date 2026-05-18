@@ -1,0 +1,90 @@
+<mat-toolbar class="app-header">
+  <a routerLink="/" class="brand" [attr.aria-label]="config.appName + ' home'">
+    <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true">
+      <defs>
+        <linearGradient id="brand-g" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#7C5CFF"/>
+          <stop offset="55%" stop-color="#3F8CFF"/>
+          <stop offset="100%" stop-color="#13D0C9"/>
+        </linearGradient>
+      </defs>
+      <rect width="64" height="64" rx="14" fill="url(#brand-g)"/>
+      <path d="M19 47 L32 17 L45 47 M24 38 H40"
+            stroke="#fff" stroke-width="4.5"
+            stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </svg>
+    <span class="brand-name">{{ config.appName }}</span>
+  </a>
+
+  <nav class="primary-nav" aria-label="Primary">
+    <a
+      mat-button
+      routerLink="/"
+      routerLinkActive="active"
+      [routerLinkActiveOptions]="{ exact: true }"
+    >Chat</a>
+    <a mat-button routerLink="/library" routerLinkActive="active">Library</a>
+    <a mat-button routerLink="/tools" routerLinkActive="active">Tools</a>
+    <a mat-button routerLink="/guide" routerLinkActive="active">Guide</a>
+    <a mat-button routerLink="/about" routerLinkActive="active">About</a>
+    <a mat-button routerLink="/security" routerLinkActive="active">Security</a>
+  </nav>
+
+  <button
+    mat-icon-button
+    class="mobile-nav-toggle"
+    [matMenuTriggerFor]="mobileNavMenu"
+    title="Menu"
+    aria-label="Open navigation menu"
+  >
+    <span class="material-symbols-outlined" aria-hidden="true">menu</span>
+  </button>
+  <mat-menu #mobileNavMenu="matMenu" xPosition="before">
+    @for (link of navLinks; track link.path) {
+      <a
+        mat-menu-item
+        [routerLink]="link.path"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="link.exact ? { exact: true } : { exact: false }"
+      >
+        <span class="material-symbols-outlined" aria-hidden="true">{{ link.icon }}</span>
+        <span>{{ link.label }}</span>
+      </a>
+    }
+  </mat-menu>
+
+  <span class="spacer"></span>
+
+  <button
+    mat-icon-button
+    title="Observability dashboard"
+    aria-label="Open observability dashboard"
+    (click)="openObservability()"
+  >
+    <span class="material-symbols-outlined" aria-hidden="true">monitoring</span>
+  </button>
+
+  <button
+    mat-icon-button
+    [matMenuTriggerFor]="themeMenu"
+    title="Theme"
+    aria-label="Change theme"
+  >
+    <span class="material-symbols-outlined" aria-hidden="true">{{ currentThemeIcon() }}</span>
+  </button>
+  <mat-menu #themeMenu="matMenu">
+    @for (option of themeOptions; track option.id) {
+      <button mat-menu-item (click)="setTheme(option.id)" [class.active]="theme.preference() === option.id">
+        <span class="material-symbols-outlined" aria-hidden="true">{{ option.icon }}</span>
+        <span>{{ option.label }}</span>
+        @if (theme.preference() === option.id) {
+          <span class="material-symbols-outlined check" aria-hidden="true">check</span>
+        }
+      </button>
+    }
+  </mat-menu>
+
+  <a mat-icon-button routerLink="/settings" title="Settings" aria-label="Open settings">
+    <span class="material-symbols-outlined" aria-hidden="true">settings</span>
+  </a>
+</mat-toolbar>

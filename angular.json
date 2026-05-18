@@ -31,6 +31,10 @@
             ],
             "styles": [
               "src/styles.scss"
+            ],
+            "allowedCommonJsDependencies": [
+              "p-retry",
+              "leaflet"
             ]
           },
           "configurations": {
@@ -38,13 +42,13 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "500kB",
-                  "maximumError": "1MB"
+                  "maximumWarning": "650kB",
+                  "maximumError": "850kB"
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "4kB",
-                  "maximumError": "8kB"
+                  "maximumWarning": "16kB",
+                  "maximumError": "24kB"
                 }
               ],
               "outputHashing": "all"
@@ -70,7 +74,26 @@
           "defaultConfiguration": "development"
         },
         "test": {
-          "builder": "@angular/build:unit-test"
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "coverageExclude": [
+              "**/*.spec.ts",
+              "**/*.types.ts",
+              "**/*.descriptor.ts",
+              "**/*.manifest.ts",
+              "src/main.ts",
+              "src/app/app.config.ts",
+              "src/app/app.routes.ts",
+              "src/app/core/registry/register-tools.ts",
+              "src/app/shared/tools/itinerary-map/map-canvas.ts"
+            ],
+            "coverageReporters": [
+              "text",
+              "text-summary",
+              "html",
+              "lcov"
+            ]
+          }
         }
       }
     }

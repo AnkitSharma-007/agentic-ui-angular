@@ -1,0 +1,64 @@
+<mat-card class="custom-tool-card" [class.error]="status() === 'error'">
+  <mat-card-header>
+    <div class="tool-header-row">
+      <div class="head-left">
+        <mat-icon class="head-icon" aria-hidden="true">extension</mat-icon>
+        <div class="head-text">
+          <span class="badge">Custom tool</span>
+          <h3 class="head-tool-name">{{ toolName() }}</h3>
+        </div>
+      </div>
+      <span class="status" [class.running]="status() === 'running'">
+        @if (status() === 'pending_approval') {
+          <mat-icon>pending</mat-icon> Awaiting approval
+        } @else if (status() === 'running') {
+          <span class="dot"></span> Running
+        } @else if (status() === 'complete') {
+          <mat-icon>check_circle</mat-icon> Complete
+        } @else if (status() === 'error') {
+          <mat-icon>error</mat-icon> Error
+        } @else if (status() === 'rejected') {
+          <mat-icon>do_not_disturb_on</mat-icon> Cancelled
+        }
+      </span>
+    </div>
+  </mat-card-header>
+
+  <mat-card-content class="custom-tool-body">
+    @if (toolDescription()) {
+      <p class="description">{{ toolDescription() }}</p>
+    }
+
+    @if (argEntries().length > 0) {
+      <div class="section">
+        <span class="section-label">Arguments</span>
+        <ul class="args">
+          @for (entry of argEntries(); track entry[0]) {
+            <li>
+              <code class="arg-key">{{ entry[0] }}</code>
+              <span class="arg-value">{{ formatValue(entry[1]) }}</span>
+            </li>
+          }
+        </ul>
+      </div>
+    }
+
+    @if (status() === 'complete' && responseJson()) {
+      <div class="section">
+        <span class="section-label">Response</span>
+        <pre class="response">{{ responseJson() }}</pre>
+      </div>
+    }
+
+    @if (status() === 'error' && errorMessage()) {
+      <p class="error-message">{{ errorMessage() }}</p>
+    }
+
+    @if (status() === 'rejected') {
+      <div class="tool-rejected-banner">
+        <mat-icon aria-hidden="true">do_not_disturb_on</mat-icon>
+        <span>{{ interruptReason() ?? 'Tool call cancelled.' }}</span>
+      </div>
+    }
+  </mat-card-content>
+</mat-card>
