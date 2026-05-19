@@ -29,40 +29,19 @@ A travel-assistant app where two specialist agents (**TripPlanner** and **Experi
 6. **Live observability dashboard.** A side drawer ([`ObservabilityDrawerComponent`](./src/app/shared/observability-drawer/observability-drawer.ts)) renders a waterfall of every round and every tool call on a shared time axis, colour-coded by status, with usage / latency / cost / model on each row.
 7. **Cost & context meter.** A persistent header pill ([`CostMeterComponent`](./src/app/shared/cost-meter/cost-meter.ts)) shows the live USD spend, token totals, context utilisation, and latency for the current turn. Expandable to a full breakdown by input / output / thinking tokens.
 8. **Per-turn budget governor.** [`BudgetService`](./src/app/core/observability/budget.service.ts) enforces user-configurable caps on tokens, rounds, and dollars. The agent loop checks the budget at the start of every round and short-circuits with a `BUDGET_EXCEEDED:<kind>` finish reason if breached.
-9. **Custom tool builder.** A no-code form ([`/tools`](./src/app/features/tools/tools.ts)) lets users define a tool (name, description, parameters, JSON response template) and Atlas registers it with the runtime *without a reload*. New tools persist in IndexedDB and are available to the agent on the very next prompt.
+9. **Custom tool builder.** A no-code form ([`/tools`](./src/app/features/tools/tools.ts)) lets users define a tool (name, description, parameters, JSON response template) and Atlas registers it with the runtime _without a reload_. New tools persist in IndexedDB and are available to the agent on the very next prompt.
 10. **Replay library.** Any completed turn can be saved to IndexedDB as a `ReplayPayload`. The [Library](./src/app/features/library/library.ts) lists them; "Play" navigates back to the home page with `?replay=<id>` and the saved `AgentEvent[]` is fed through [`ReplayPlayer`](./src/app/core/replay/replay-player.ts). Same UI, same inter-event timing, no API call.
 
 ### The production basics
 
 11. **BYOK with two storage tiers.** Session-only (cleared on tab close) or AES-GCM encrypted in localStorage behind a PBKDF2-derived key (250 000 iterations). See [`api-key.service.ts`](./src/app/core/services/api-key.service.ts) + [`webcrypto.helpers.ts`](./src/app/core/crypto/webcrypto.helpers.ts).
-12. **Lazy everything.** Routes lazy-load. Tool *implementations* lazy-load (Zod + components stay out of the initial bundle until used). Leaflet (~140 kB) loads only when the itinerary map enters the viewport via `@defer (on viewport)`. Initial gzip transfer is ~143 kB.
+12. **Lazy everything.** Routes lazy-load. Tool _implementations_ lazy-load (Zod + components stay out of the initial bundle until used). Leaflet (~140 kB) loads only when the itinerary map enters the viewport via `@defer (on viewport)`. Initial gzip transfer is ~143 kB.
 13. **Zoneless Angular**, standalone components, Signals-first, OnPush across the board, new control flow (`@if`, `@for`, `@defer`).
 14. **Markdown rendering is sanitised by default** (no `bypassSecurityTrustHtml`); model output passes through `marked` (no raw-HTML) and then Angular's `DomSanitizer`.
 
 ---
 
 ## Architecture at a glance
-
-```mermaid
-flowchart TD
-    User([User]) -->|prompt| Home[HomeComponent]
-    Home -->|streamAgentTurn| Gemini[GeminiService]
-    Gemini <-->|HTTPS / SSE| API[(Gemini API)]
-    Gemini -->|chunk stream| Operator[chunkToEvents operator]
-    Operator -->|AgentEvent[]| Store[AgentEventStore]
-    Operator -->|Content[]| Store
-    Store -->|signals| Home
-    Store -->|signals| CostMeter[Cost Meter]
-    Store -->|signals| Drawer[Observability Drawer]
-    Gemini -->|tool_call| Registry[ToolRegistry]
-    Registry -->|lazy descriptor| Executor((execute))
-    Registry -->|Component class| Outlet[NgComponentOutlet]
-    Executor -->|tool_result| Store
-    Outlet -->|interrupt decision| Interrupt[InterruptService]
-    Interrupt --> Gemini
-    Gemini -->|handoffTo| Agents[AgentRegistry]
-    Agents -->|active agent| Gemini
-```
 
 **Layers**, from `src/app/`:
 
@@ -105,20 +84,20 @@ For the agent loop itself, the canonical entry point is [`GeminiService.streamAg
 
 ## Tech stack
 
-| Concern | Choice |
-| --- | --- |
-| Framework | **Angular** (standalone, zoneless, Signals, new control flow) |
-| UI kit | **Angular Material** (token-based theming, light/dark/system) |
-| LLM | **Gemini** via [`@google/genai`](https://www.npmjs.com/package/@google/genai) (streaming; tier picker in Settings) |
-| Reactive state | **Signals** for component state, **RxJS** for streams |
-| Schema validation | **Zod** (lazy-loaded, kept out of the initial bundle) |
-| Map rendering | **Leaflet** (lazy-loaded via `@defer (on viewport)`) |
-| Markdown | **marked** with `DomSanitizer` |
-| Persistence | **IndexedDB** (replays, custom tools); **localStorage** (budgets, encrypted key blob); **sessionStorage** (session keys) |
-| Crypto | **WebCrypto** (AES-GCM + PBKDF2-SHA256, 250k iterations) |
-| Test runner | **Vitest** via Angular's `@angular/build:unit-test` builder |
-| Mock IDB in tests | **fake-indexeddb** |
-| Build | **esbuild + Vite** (Angular's `@angular/build` toolchain) |
+| Concern           | Choice                                                                                                                   |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Framework         | **Angular** (standalone, zoneless, Signals, new control flow)                                                            |
+| UI kit            | **Angular Material** (token-based theming, light/dark/system)                                                            |
+| LLM               | **Gemini** via [`@google/genai`](https://www.npmjs.com/package/@google/genai) (streaming; tier picker in Settings)       |
+| Reactive state    | **Signals** for component state, **RxJS** for streams                                                                    |
+| Schema validation | **Zod** (lazy-loaded, kept out of the initial bundle)                                                                    |
+| Map rendering     | **Leaflet** (lazy-loaded via `@defer (on viewport)`)                                                                     |
+| Markdown          | **marked** with `DomSanitizer`                                                                                           |
+| Persistence       | **IndexedDB** (replays, custom tools); **localStorage** (budgets, encrypted key blob); **sessionStorage** (session keys) |
+| Crypto            | **WebCrypto** (AES-GCM + PBKDF2-SHA256, 250k iterations)                                                                 |
+| Test runner       | **Vitest** via Angular's `@angular/build:unit-test` builder                                                              |
+| Mock IDB in tests | **fake-indexeddb**                                                                                                       |
+| Build             | **esbuild + Vite** (Angular's `@angular/build` toolchain)                                                                |
 
 The full dependency manifest lives in [`package.json`](./package.json).
 
@@ -130,12 +109,12 @@ Atlas is a pure frontend SPA. You bring your own Gemini API key; nothing about t
 
 ### Prerequisites
 
-| Tool | Tested with | Why |
-| --- | --- | --- |
-| **Node.js** | current LTS (`v20.x` or `v22.x` tested) | required by Angular CLI |
-| **npm** | `10.8+` | shipped with current LTS Node |
-| **Modern browser** | Chrome / Edge / Safari / Firefox latest | needs `crypto.subtle` and modern IndexedDB |
-| **Gemini API key** | free tier is enough | grab one from <https://aistudio.google.com/app/apikey> |
+| Tool               | Tested with                             | Why                                                    |
+| ------------------ | --------------------------------------- | ------------------------------------------------------ |
+| **Node.js**        | current LTS (`v20.x` or `v22.x` tested) | required by Angular CLI                                |
+| **npm**            | `10.8+`                                 | shipped with current LTS Node                          |
+| **Modern browser** | Chrome / Edge / Safari / Firefox latest | needs `crypto.subtle` and modern IndexedDB             |
+| **Gemini API key** | free tier is enough                     | grab one from <https://aistudio.google.com/app/apikey> |
 
 ### Install
 
@@ -160,7 +139,7 @@ Open **<http://localhost:4200>**.
 The first time the app loads, it routes you to an onboarding screen:
 
 1. Paste your Gemini API key.
-2. *(Optional)* Click **Test connection**. Atlas issues a single fast "say ok" call to Gemini and reports the round-trip status.
+2. _(Optional)_ Click **Test connection**. Atlas issues a single fast "say ok" call to Gemini and reports the round-trip status.
 3. Choose where to store the key:
    - **For this session only** (default, safest, lives in `sessionStorage` until tab close).
    - **Remember on this device**: you set a passphrase, the key is AES-GCM encrypted with a PBKDF2-derived key and stored in `localStorage`. On the next visit you re-enter the passphrase to unlock.
@@ -242,17 +221,17 @@ Once you're past onboarding, the home page has three regions:
 4. **Hand off to the second agent.** Use the **"Activities only"** sample prompt. The model calls `handoffTo` with `specialist: "experienceCurator"`. The agent-graph header above the cards animates to the new active node and `findActivities` runs under ExperienceCurator.
 5. **Save the run.** Click **Save** at the bottom of the response card. Navigate to **Library**.
 6. **Replay it.** Click **Replay** on the saved row. The home page reloads with no API call: same UI, same timing, deterministic.
-7. **Build a custom tool.** Go to **Tools** → click **Load example**. Save the `searchWeather` tool. Return to **Chat**. Ask *"What's the weather in Goa on 2026-06-15?"* and the agent picks up your tool, with the response rendering in a generic custom-tool card.
+7. **Build a custom tool.** Go to **Tools** → click **Load example**. Save the `searchWeather` tool. Return to **Chat**. Ask _"What's the weather in Goa on 2026-06-15?"_ and the agent picks up your tool, with the response rendering in a generic custom-tool card.
 8. **Set a budget.** Go to **Settings** → apply the **Tight** budget preset (3 rounds, 10k tokens, $0.02). Send a complex prompt. When the cap is hit, the turn ends with `BUDGET_EXCEEDED:tokens` (or rounds / cost) and a banner shows which limit fired.
 
 ### The four sample prompts (also visible in the app)
 
-| Card | Demonstrates |
-| --- | --- |
-| Plan a weekend | Multi-tool agent loop, parallel execution, HITL approval, Leaflet `@defer` |
-| Activities only | Agent handoff, second specialist, dynamic system prompt + tool gating |
-| Let me choose | `letUserChoose` interactive selection, downstream tool reading the picked option |
-| Road trip | Pure `renderItinerary` showcase, multi-waypoint route on the map |
+| Card            | Demonstrates                                                                     |
+| --------------- | -------------------------------------------------------------------------------- |
+| Plan a weekend  | Multi-tool agent loop, parallel execution, HITL approval, Leaflet `@defer`       |
+| Activities only | Agent handoff, second specialist, dynamic system prompt + tool gating            |
+| Let me choose   | `letUserChoose` interactive selection, downstream tool reading the picked option |
+| Road trip       | Pure `renderItinerary` showcase, multi-waypoint route on the map                 |
 
 ---
 
@@ -275,16 +254,16 @@ If you have ten minutes to read code, read these in order:
 
 ## Security model
 
-| Concern | How Atlas handles it |
-| --- | --- |
-| API key never leaves the browser | The key is read directly into `GoogleGenAI({ apiKey })`. No backend, no proxy, no telemetry server. |
-| Default storage | `sessionStorage` (cleared on tab close). |
-| Persistent storage | AES-GCM-256 with a PBKDF2-SHA256-derived key (250 000 iterations). Salt + IV are random per encryption. The passphrase is never persisted. |
-| Wrong passphrase | `DecryptionFailedError`: the UI shows a generic "passphrase did not unlock" message; no oracle for brute force. |
-| Markdown XSS | Two-layer defence: `marked` is configured **without** raw-HTML passthrough, and the output goes through Angular's built-in `DomSanitizer` via `[innerHTML]`. We intentionally do **not** call `bypassSecurityTrustHtml`. |
-| Tool args | Every tool descriptor declares a Zod schema. The registry refuses to invoke an executor with invalid args, surfacing a typed `tool_result` error event the agent can recover from. |
-| Replay payloads | Stored only in the user's local IndexedDB; never uploaded. The Library has explicit per-row delete and a "Delete all" button. |
-| CSP | The HTML response sets a strict-default CSP suitable for this SPA; only `aistudio.google.com` and `generativelanguage.googleapis.com` are reached on the network tab during a normal session. |
+| Concern                          | How Atlas handles it                                                                                                                                                                                                     |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| API key never leaves the browser | The key is read directly into `GoogleGenAI({ apiKey })`. No backend, no proxy, no telemetry server.                                                                                                                      |
+| Default storage                  | `sessionStorage` (cleared on tab close).                                                                                                                                                                                 |
+| Persistent storage               | AES-GCM-256 with a PBKDF2-SHA256-derived key (250 000 iterations). Salt + IV are random per encryption. The passphrase is never persisted.                                                                               |
+| Wrong passphrase                 | `DecryptionFailedError`: the UI shows a generic "passphrase did not unlock" message; no oracle for brute force.                                                                                                          |
+| Markdown XSS                     | Two-layer defence: `marked` is configured **without** raw-HTML passthrough, and the output goes through Angular's built-in `DomSanitizer` via `[innerHTML]`. We intentionally do **not** call `bypassSecurityTrustHtml`. |
+| Tool args                        | Every tool descriptor declares a Zod schema. The registry refuses to invoke an executor with invalid args, surfacing a typed `tool_result` error event the agent can recover from.                                       |
+| Replay payloads                  | Stored only in the user's local IndexedDB; never uploaded. The Library has explicit per-row delete and a "Delete all" button.                                                                                            |
+| CSP                              | The HTML response sets a strict-default CSP suitable for this SPA; only `aistudio.google.com` and `generativelanguage.googleapis.com` are reached on the network tab during a normal session.                            |
 
 The in-app **Security** route walks through the same threat model with the actual constants visible.
 
@@ -292,7 +271,7 @@ The in-app **Security** route walks through the same threat model with the actua
 
 ## Known limitations / what's mocked
 
-Atlas is a frontend application. The model **is real**, but the tool *backends* are not. To keep the app reliable and zero-cost to run:
+Atlas is a frontend application. The model **is real**, but the tool _backends_ are not. To keep the app reliable and zero-cost to run:
 
 - `searchFlights`, `searchHotels`, `bookFlight`, `renderItinerary`, `findActivities` return **deterministic mock data** keyed off their args (same args → same response). Latencies are simulated to make parallel-as-they-settle visible.
 - `bookFlight` does **not** book a real flight; it returns a confirmation payload with a synthesised booking ref.
@@ -305,11 +284,11 @@ Switching any tool to a real backend is a one-file change: replace the `execute`
 
 ## Troubleshooting
 
-| Symptom | Likely cause | Fix |
-| --- | --- | --- |
-| "Authentication failed. Your API key may be invalid or expired." | No key, expired session, or revoked/invalid key (all auth failures funnel through the same humanised message) | Open **Settings** → **Forget saved key** to re-onboard. If the key itself is bad, generate a new one in [AI Studio](https://aistudio.google.com/app/apikey). |
-| `429 / rate.?limit / quota` | Free-tier RPM exceeded | Wait a minute, or switch model in **Settings**. |
-| "passphrase did not unlock the stored key" | Wrong passphrase | Re-enter, or click **Forget saved key** to re-onboard from scratch. |
-| Cards say "running" forever | Browser blocked the request (e.g. corp proxy) | Check the network tab; the request to `generativelanguage.googleapis.com` should be visible. |
-| Map never appears | Browser blocked OSM tiles | Open the network tab while the itinerary card is in view; `tile.openstreetmap.org` must be reachable. |
-| `IndexedDB blocked` in Library / Tools | Private-browsing mode or storage quota | The app gracefully degrades: the **Library** and **Tools** pages render an inline "storage unavailable" banner instead of the editor or list, but the chat surface keeps working. |
+| Symptom                                                          | Likely cause                                                                                                  | Fix                                                                                                                                                                               |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "Authentication failed. Your API key may be invalid or expired." | No key, expired session, or revoked/invalid key (all auth failures funnel through the same humanised message) | Open **Settings** → **Forget saved key** to re-onboard. If the key itself is bad, generate a new one in [AI Studio](https://aistudio.google.com/app/apikey).                      |
+| `429 / rate.?limit / quota`                                      | Free-tier RPM exceeded                                                                                        | Wait a minute, or switch model in **Settings**.                                                                                                                                   |
+| "passphrase did not unlock the stored key"                       | Wrong passphrase                                                                                              | Re-enter, or click **Forget saved key** to re-onboard from scratch.                                                                                                               |
+| Cards say "running" forever                                      | Browser blocked the request (e.g. corp proxy)                                                                 | Check the network tab; the request to `generativelanguage.googleapis.com` should be visible.                                                                                      |
+| Map never appears                                                | Browser blocked OSM tiles                                                                                     | Open the network tab while the itinerary card is in view; `tile.openstreetmap.org` must be reachable.                                                                             |
+| `IndexedDB blocked` in Library / Tools                           | Private-browsing mode or storage quota                                                                        | The app gracefully degrades: the **Library** and **Tools** pages render an inline "storage unavailable" banner instead of the editor or list, but the chat surface keeps working. |
