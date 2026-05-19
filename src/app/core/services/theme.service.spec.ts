@@ -1,10 +1,42 @@
 import { TestBed } from '@angular/core/testing';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ThemeService } from './theme.service';
 
 const STORAGE_KEY = 'agentic-ui.theme-preference';
 
+interface FakeMediaQueryList {
+  matches: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  listeners: Array<(event: { matches: boolean }) => void>;
+  addEventListener: (
+    name: 'change',
+    cb: (event: { matches: boolean }) => void,
+  ) => void;
+  removeEventListener: (
+    name: 'change',
+    cb: (event: { matches: boolean }) => void,
+  ) => void;
+}
+
+function installFakeMatchMedia(initialDark: boolean): FakeMediaQueryList {
+  const mql: FakeMediaQueryList = {
+    matches: initialDark,
+    listeners: [],
+    addEventListener(_name, cb) {
+      this.listeners.push(cb);
+    },
+    removeEventListener(_name, cb) {
+      this.listeners = this.listeners.filter((l) => l !== cb);
+    },
+  };
+  (window as unknown as { matchMedia: (q: string) => FakeMediaQueryList }).matchMedia =
+    () => mql;
+  return mql;
+}
+
 describe('ThemeService', () => {
+  const originalMatchMedia = window.matchMedia;
+
   beforeEach(() => {
     localStorage.clear();
     document.documentElement.classList.remove('theme-light', 'theme-dark');
@@ -14,6 +46,11 @@ describe('ThemeService', () => {
 
   afterEach(() => {
     document.documentElement.classList.remove('theme-light', 'theme-dark');
+    if (originalMatchMedia) {
+      (window as unknown as { matchMedia: typeof originalMatchMedia }).matchMedia =
+        originalMatchMedia;
+    }
+    vi.restoreAllMocks();
   });
 
   it('defaults to "system" when nothing is persisted', () => {
@@ -62,5 +99,40 @@ describe('ThemeService', () => {
     TestBed.configureTestingModule({});
     const service = TestBed.inject(ThemeService);
     expect(service.preference()).toBe('system');
+  });
+
+  it('updates resolvedTheme when the OS prefers-color-scheme changes under "system"', () => {
+    const mql = installFakeMatchMedia(false);
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    const service = TestBed.inject(ThemeService);
+
+    expect(service.preference()).toBe('system');
+    expect(service.resolvedTheme()).toBe('light');
+
+    for (const listener of mql.listeners) listener({ matches: true });
+    mql.matches = true;
+
+    expect(service.resolvedTheme()).toBe('dark');
+
+    for (const listener of mql.listeners) listener({ matches: false });
+    mql.matches = false;
+
+    expect(service.resolvedTheme()).toBe('light');
+  });
+
+  it('does not flip resolvedTheme when the user picked an explicit mode', () => {
+    const mql = installFakeMatchMedia(false);
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    const service = TestBed.inject(ThemeService);
+
+    service.set('light');
+    expect(service.resolvedTheme()).toBe('light');
+
+    for (const listener of mql.listeners) listener({ matches: true });
+    mql.matches = true;
+
+    expect(service.resolvedTheme()).toBe('light');
   });
 });

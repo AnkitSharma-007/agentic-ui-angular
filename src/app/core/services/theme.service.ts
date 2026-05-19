@@ -7,13 +7,14 @@ const STORAGE_KEY = 'agentic-ui.theme-preference';
 @Injectable({ providedIn: 'root' })
 export class ThemeService {
   private readonly _preference = signal<ThemePreference>(this.readInitial());
+  private readonly _systemPrefersDark = signal<boolean>(this.readSystemPrefersDark());
 
   readonly preference = this._preference.asReadonly();
 
   readonly resolvedTheme = computed<'light' | 'dark'>(() => {
     const pref = this._preference();
     if (pref === 'light' || pref === 'dark') return pref;
-    return this.systemPrefersDark() ? 'dark' : 'light';
+    return this._systemPrefersDark() ? 'dark' : 'light';
   });
 
   constructor() {
@@ -23,7 +24,8 @@ export class ThemeService {
 
     if (typeof window !== 'undefined' && window.matchMedia) {
       const mql = window.matchMedia('(prefers-color-scheme: dark)');
-      mql.addEventListener('change', () => {
+      mql.addEventListener('change', (event) => {
+        this._systemPrefersDark.set(event.matches);
         if (this._preference() === 'system') {
           this.applyToDocument('system');
         }
@@ -56,7 +58,7 @@ export class ThemeService {
     return 'system';
   }
 
-  private systemPrefersDark(): boolean {
+  private readSystemPrefersDark(): boolean {
     if (typeof window === 'undefined' || !window.matchMedia) return false;
     return window.matchMedia('(prefers-color-scheme: dark)').matches;
   }
