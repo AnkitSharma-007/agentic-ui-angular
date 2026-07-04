@@ -310,6 +310,17 @@ export class HomeComponent implements OnInit {
     this.saveWarning.set(null);
   }
 
+  // Re-run the last submitted prompt after a failed turn. Reuses `send()`,
+  // which begins a fresh turn (resetting the error phase). Text-only: one-shot
+  // attachments from the original turn were already cleared on the first send.
+  protected retryLast(): void {
+    if (this.isStreaming()) return;
+    const text = this.lastPrompt();
+    if (!text) return;
+    this.prompt.set(text);
+    this.send();
+  }
+
   protected toggleMic(): void {
     if (this.isStreaming()) return;
     if (this.isRecording()) {

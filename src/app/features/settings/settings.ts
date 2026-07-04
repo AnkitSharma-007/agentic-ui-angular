@@ -68,6 +68,15 @@ export class SettingsComponent {
     this.models.find((m) => m.id === this.gemini.selectedModel()),
   );
 
+  // Human-readable label for the key-storage tier instead of the raw enum
+  // (`encrypted-local` / `session`).
+  protected readonly storageLabel = computed(() => {
+    if (this.apiKey.storage() === 'encrypted-local' || this.apiKey.hasLockedBlob()) {
+      return 'Encrypted on this device';
+    }
+    return this.apiKey.hasKey() ? 'This session only' : 'Not configured';
+  });
+
   protected readonly maxTokensInput = signal<string>(
     this.budget.config().maxTokens?.toString() ?? '',
   );

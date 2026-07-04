@@ -60,7 +60,7 @@
           <span class="status-label">Storage</span>
           <span class="status-value">
             <mat-icon>{{ apiKey.storage() === 'encrypted-local' ? 'enhanced_encryption' : apiKey.storage() === 'session' ? 'timer' : 'help' }}</mat-icon>
-            {{ apiKey.storage() }}
+            {{ storageLabel() }}
           </span>
         </div>
         <div class="status-item">

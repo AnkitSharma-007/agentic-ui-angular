@@ -145,9 +145,13 @@
       <section class="user-turn" aria-label="Your message">
         @if (userTurn().attachments.length > 0) {
           <div class="user-turn-media">
-            @for (media of userTurn().attachments; track media.dataUrl) {
+            @for (media of userTurn().attachments; track media.dataUrl; let idx = $index) {
               @if (media.kind === 'image') {
-                <img class="user-turn-thumb" [src]="media.dataUrl" alt="Attached image" />
+                <img
+                  class="user-turn-thumb"
+                  [src]="media.dataUrl"
+                  [alt]="'Attached image ' + (idx + 1)"
+                />
               } @else {
                 <span class="user-turn-file" aria-label="Audio attachment">
                   <span class="material-symbols-outlined" aria-hidden="true">graphic_eq</span>
@@ -217,14 +221,25 @@
     }
 
     @if (phase() === 'error' && errorMessage()) {
-      <div class="banner error">
+      <div class="banner error" role="alert">
         <span class="material-symbols-outlined" aria-hidden="true">error</span>
-        {{ errorMessage() }}
+        <span class="banner-text">{{ errorMessage() }}</span>
+        @if (lastPrompt() && !isStreaming()) {
+          <button
+            type="button"
+            mat-stroked-button
+            class="banner-action"
+            (click)="retryLast()"
+          >
+            <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
+            Retry last prompt
+          </button>
+        }
       </div>
     }
 
     @if (phase() === 'cancelled') {
-      <div class="banner info">
+      <div class="banner info" role="status" aria-live="polite">
         <span class="material-symbols-outlined" aria-hidden="true">cancel</span>
         Stream cancelled.
       </div>

@@ -1,3 +1,7 @@
+import { isDevMode } from '@angular/core';
+
+const GENERIC_ERROR = 'Something went wrong talking to Gemini. Please try again.';
+
 /**
  * Map raw errors thrown by the Gemini SDK or fetch into short, user-facing
  * strings. Keeps every error surface in the UI consistent.
@@ -17,7 +21,10 @@ export function humanizeGeminiError(err: unknown): string {
   if (/cors/i.test(message)) {
     return 'Browser blocked the request (CORS). Reload the page and try again.';
   }
-  return message || 'Unknown error.';
+  // Unrecognised shape: never surface raw SDK/stack text to users in production
+  // (it can leak request IDs, internal URLs, or stack fragments). Keep the raw
+  // detail in dev builds to aid debugging.
+  return isDevMode() ? message || 'Unknown error.' : GENERIC_ERROR;
 }
 
 // Plain-object rejections (e.g. `{ code: 401, message: 'unauthorized' }`)

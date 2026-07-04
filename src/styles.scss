@@ -134,7 +134,10 @@ a:not(.mat-mdc-button-base):hover {
   border-radius: 4px;
 }
 
-button:focus-visible,
+// Material components render their own keyboard-focus indicator, so we suppress
+// the generic ring above only for them. Native <button>s (sample cards, composer
+// controls, speed pills, cost-meter, etc.) intentionally fall through to the
+// `*:focus-visible` ring so keyboard focus stays visible (WCAG 2.4.7).
 a[mat-button]:focus-visible,
 a[mat-icon-button]:focus-visible,
 .mat-mdc-button:focus-visible,

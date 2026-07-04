@@ -260,7 +260,6 @@
     border-color: color-mix(in srgb, var(--mat-sys-primary) 60%, var(--mat-sys-outline-variant));
     background-color: var(--mat-sys-surface-container-high);
     box-shadow: 0 14px 30px -22px color-mix(in srgb, var(--mat-sys-primary) 60%, transparent);
-    outline: none;
 
     .sample-arrow {
       transform: translate(2px, -2px);
@@ -553,6 +552,22 @@
   border-radius: 12px;
   font-size: 14px;
   border: 1px solid var(--mat-sys-outline-variant);
+
+  .banner-text {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .banner-action {
+    flex: 0 0 auto;
+    margin-left: 0.5rem;
+
+    .material-symbols-outlined {
+      font-size: 18px;
+      margin-right: 0.25rem;
+      vertical-align: text-bottom;
+    }
+  }
 
   &.error {
     background-color: var(--mat-sys-error-container);
