@@ -6,10 +6,18 @@ import { SettingsComponent } from './settings';
 import { BudgetService } from '../../core/observability/budget.service';
 import { GeminiService } from '../../core/services/gemini.service';
 
+interface BudgetForm {
+  maxTokens: number | null;
+  maxRounds: number | null;
+  maxCost: number | null;
+}
+
 interface SettingsInternals {
-  readonly maxTokensInput: { (): string; set: (v: string) => void };
-  readonly maxRoundsInput: { (): string; set: (v: string) => void };
-  readonly maxCostInput: { (): string; set: (v: string) => void };
+  readonly budgetModel: {
+    (): BudgetForm;
+    set: (v: BudgetForm) => void;
+    update: (fn: (m: BudgetForm) => BudgetForm) => void;
+  };
   readonly budgetSaveStatus: () => 'idle' | 'saved';
   saveBudget(): void;
   resetBudget(): void;
@@ -39,9 +47,7 @@ describe('SettingsComponent', () => {
     const inst = fixture.componentInstance as unknown as SettingsInternals;
 
     inst.applyPreset('tight');
-    expect(inst.maxTokensInput()).toBe('10000');
-    expect(inst.maxRoundsInput()).toBe('3');
-    expect(inst.maxCostInput()).toBe('0.02');
+    expect(inst.budgetModel()).toEqual({ maxTokens: 10000, maxRounds: 3, maxCost: 0.02 });
     expect(update).toHaveBeenCalledWith({
       maxTokens: 10000,
       maxRounds: 3,
@@ -56,11 +62,11 @@ describe('SettingsComponent', () => {
     const fixture = TestBed.createComponent(SettingsComponent);
     await fixture.whenStable();
     const inst = fixture.componentInstance as unknown as SettingsInternals;
-    inst.maxTokensInput.set('1234');
+    inst.budgetModel.update((m) => ({ ...m, maxTokens: 1234 }));
 
     inst.resetBudget();
     expect(reset).toHaveBeenCalledOnce();
-    expect(inst.maxTokensInput()).toBe('');
+    expect(inst.budgetModel()).toEqual({ maxTokens: null, maxRounds: null, maxCost: null });
   });
 
   it('selectModel delegates to GeminiService', async () => {
@@ -127,9 +133,9 @@ describe('SettingsComponent', () => {
     const fixture = TestBed.createComponent(SettingsComponent);
     await fixture.whenStable();
     const inst = fixture.componentInstance as unknown as SettingsInternals;
-    inst.maxTokensInput.set('-1');
-    inst.maxRoundsInput.set('0');
-    inst.maxCostInput.set('abc');
+    // -1 and 0 are not valid caps; null models the "couldn't parse" case a
+    // number input yields for junk like "abc".
+    inst.budgetModel.set({ maxTokens: -1, maxRounds: 0, maxCost: null });
 
     inst.saveBudget();
     expect(update).toHaveBeenCalledWith({

@@ -12,7 +12,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatIconModule } from '@angular/material/icon';
-import { FormsModule } from '@angular/forms';
+import { form, validate, FormField } from '@angular/forms/signals';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 
@@ -30,6 +30,26 @@ interface ThemeOption {
   readonly icon: string;
 }
 
+interface BudgetForm {
+  maxTokens: number | null;
+  maxRounds: number | null;
+  maxCost: number | null;
+}
+
+// A budget cap is either "unset" (null → no cap) or a positive number. Zero and
+// negative values are meaningless as caps, so they surface an inline error and
+// are coerced to null on save.
+function coercePositive(value: number | null): number | null {
+  return value !== null && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function positiveCapError(value: number | null): { kind: string; message: string } | null {
+  if (value === null) return null;
+  return Number.isFinite(value) && value > 0
+    ? null
+    : { kind: 'positiveCap', message: 'Enter a value greater than 0, or leave it empty for no cap.' };
+}
+
 const THEME_OPTIONS: readonly ThemeOption[] = [
   { value: 'system', label: 'System', icon: 'routine' },
   { value: 'light', label: 'Light', icon: 'light_mode' },
@@ -39,7 +59,7 @@ const THEME_OPTIONS: readonly ThemeOption[] = [
 @Component({
   selector: 'app-settings',
   imports: [
-    FormsModule,
+    FormField,
     MatCardModule,
     MatButtonModule,
     MatSelectModule,
@@ -77,15 +97,20 @@ export class SettingsComponent {
     return this.apiKey.hasKey() ? 'This session only' : 'Not configured';
   });
 
-  protected readonly maxTokensInput = signal<string>(
-    this.budget.config().maxTokens?.toString() ?? '',
-  );
-  protected readonly maxRoundsInput = signal<string>(
-    this.budget.config().maxRounds?.toString() ?? '',
-  );
-  protected readonly maxCostInput = signal<string>(
-    this.budget.config().maxCostUsd?.toString() ?? '',
-  );
+  // Budget caps as a Signal Forms model: number | null (null = no cap). Each
+  // field validates as "empty or > 0" so bad values surface inline instead of
+  // being silently dropped on save.
+  protected readonly budgetModel = signal<BudgetForm>({
+    maxTokens: this.budget.config().maxTokens ?? null,
+    maxRounds: this.budget.config().maxRounds ?? null,
+    maxCost: this.budget.config().maxCostUsd ?? null,
+  });
+
+  protected readonly budgetForm = form(this.budgetModel, (p) => {
+    validate(p.maxTokens, ({ value }) => positiveCapError(value()));
+    validate(p.maxRounds, ({ value }) => positiveCapError(value()));
+    validate(p.maxCost, ({ value }) => positiveCapError(value()));
+  });
 
   protected readonly budgetSaveStatus = signal<'idle' | 'saved'>('idle');
 
@@ -112,23 +137,18 @@ export class SettingsComponent {
   }
 
   protected saveBudget(): void {
-    const max = (raw: string): number | null => {
-      const v = parseFloat(raw);
-      return Number.isFinite(v) && v > 0 ? v : null;
-    };
+    const m = this.budgetModel();
     this.budget.update({
-      maxTokens: max(this.maxTokensInput()),
-      maxRounds: max(this.maxRoundsInput()),
-      maxCostUsd: max(this.maxCostInput()),
+      maxTokens: coercePositive(m.maxTokens),
+      maxRounds: coercePositive(m.maxRounds),
+      maxCostUsd: coercePositive(m.maxCost),
     });
     this.flashSaved();
   }
 
   protected resetBudget(): void {
     this.budget.reset();
-    this.maxTokensInput.set('');
-    this.maxRoundsInput.set('');
-    this.maxCostInput.set('');
+    this.budgetModel.set({ maxTokens: null, maxRounds: null, maxCost: null });
     this.flashSaved();
   }
 
@@ -151,19 +171,13 @@ export class SettingsComponent {
   protected applyPreset(preset: 'demo' | 'tight' | 'generous'): void {
     switch (preset) {
       case 'demo':
-        this.maxTokensInput.set('40000');
-        this.maxRoundsInput.set('6');
-        this.maxCostInput.set('0.10');
+        this.budgetModel.set({ maxTokens: 40000, maxRounds: 6, maxCost: 0.1 });
         break;
       case 'tight':
-        this.maxTokensInput.set('10000');
-        this.maxRoundsInput.set('3');
-        this.maxCostInput.set('0.02');
+        this.budgetModel.set({ maxTokens: 10000, maxRounds: 3, maxCost: 0.02 });
         break;
       case 'generous':
-        this.maxTokensInput.set('200000');
-        this.maxRoundsInput.set('8');
-        this.maxCostInput.set('1.00');
+        this.budgetModel.set({ maxTokens: 200000, maxRounds: 8, maxCost: 1.0 });
         break;
     }
     this.saveBudget();
