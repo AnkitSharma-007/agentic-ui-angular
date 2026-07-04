@@ -48,10 +48,19 @@ export function applyResponseTemplate(
   template: string,
   args: Record<string, unknown>,
 ): { ok: true; value: unknown } | { ok: false; error: string } {
-  const substituted = template.replace(/\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g, (_, name) => {
-    const v = args[name as string];
+  // Each placeholder is replaced with the JSON representation of its value, so
+  // strings come out already quoted. LLMs (and people) frequently wrap the
+  // placeholder in quotes anyway (`"{{city}}"`), which would otherwise produce
+  // double-quoted, invalid JSON. Handle that quoted form first — stripping the
+  // surrounding quotes — then any bare placeholders.
+  const substitute = (name: string): string => {
+    const v = args[name];
     return v === undefined ? 'null' : JSON.stringify(v);
-  });
+  };
+
+  const substituted = template
+    .replace(/"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}"/g, (_, name) => substitute(name))
+    .replace(/\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g, (_, name) => substitute(name));
 
   try {
     return { ok: true, value: JSON.parse(substituted) };

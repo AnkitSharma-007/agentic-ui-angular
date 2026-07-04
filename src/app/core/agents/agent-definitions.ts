@@ -11,6 +11,12 @@ export const TOOL_SYNTHESIS_CLAUSE = [
   'responseTemplate using {{param}} placeholders) and wait for the user to approve it.',
   'Once approved the tool becomes callable on your next round — call it then to fulfil',
   'the request. If the user rejects it, read their note and revise or choose another approach.',
+  'A tool you proposed returns a fixed response template, so calling it more than once —',
+  'even with different arguments — produces the same output. Call each such tool at most',
+  'once per turn; do not repeat the call to refine or re-filter the result.',
+  'After any tool returns — especially one you just proposed — never end your turn on the',
+  'raw tool output. Always add a short, friendly natural-language summary of what the result',
+  'means for the user, since the raw JSON alone is not a good answer.',
 ].join(' ');
 
 export const TRIP_PLANNER_AGENT: AgentDefinition = {

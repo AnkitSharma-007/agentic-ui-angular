@@ -43,10 +43,27 @@
       </div>
     }
 
-    @if (status() === 'complete' && responseJson()) {
+    @if (status() === 'complete' && responseNode(); as node) {
       <div class="section">
         <span class="section-label">Response</span>
-        <pre class="response">{{ responseJson() }}</pre>
+
+        @if (node.kind === 'scalar') {
+          <p class="response-text">{{ node.text }}</p>
+        } @else {
+          <div class="response-view">
+            <ng-container *ngTemplateOutlet="nodeTpl; context: { node }" />
+          </div>
+        }
+
+        @if (responseJson()) {
+          <button type="button" class="raw-toggle" (click)="toggleRaw()">
+            <mat-icon>{{ rawOpen() ? 'expand_less' : 'data_object' }}</mat-icon>
+            {{ rawOpen() ? 'Hide raw JSON' : 'Show raw JSON' }}
+          </button>
+          @if (rawOpen()) {
+            <pre class="response">{{ responseJson() }}</pre>
+          }
+        }
       </div>
     }
 
@@ -62,3 +79,40 @@
     }
   </mat-card-content>
 </mat-card>
+
+<!-- Recursive renderer for a response value node (self-referential). -->
+<ng-template #nodeTpl let-node="node">
+  @switch (node.kind) {
+    @case ('list') {
+      <ul class="result-list">
+        @for (item of node.items; track $index) {
+          <li class="result-item">
+            <ng-container *ngTemplateOutlet="nodeTpl; context: { node: item }" />
+          </li>
+        }
+      </ul>
+    }
+    @case ('object') {
+      @if (node.title) {
+        <span class="result-title">{{ node.title }}</span>
+      }
+      @if (node.entries.length > 0) {
+        <ul class="kv-list">
+          @for (entry of node.entries; track entry.key) {
+            <li [class.kv-block]="entry.node.kind !== 'scalar'">
+              <code class="kv-key">{{ entry.key }}</code>
+              @if (entry.node.kind === 'scalar') {
+                <span class="kv-value">{{ entry.node.text }}</span>
+              } @else {
+                <ng-container *ngTemplateOutlet="nodeTpl; context: { node: entry.node }" />
+              }
+            </li>
+          }
+        </ul>
+      }
+    }
+    @default {
+      <span class="kv-value">{{ node.text }}</span>
+    }
+  }
+</ng-template>

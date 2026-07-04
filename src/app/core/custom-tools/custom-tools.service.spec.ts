@@ -226,4 +226,25 @@ describe('CustomToolsService — response template via the loaded descriptor', (
     const result = applyResponseTemplate('{"v": {{missing}}}', {});
     expect(result).toEqual({ ok: true, value: { v: null } });
   });
+
+  it('tolerates quote-wrapped string placeholders without double-quoting', () => {
+    // The LLM habit: `"{{city}}"`. Naive substitution would yield `""Goa""`.
+    const result = applyResponseTemplate('{"city": "{{city}}"}', { city: 'Goa' });
+    expect(result).toEqual({ ok: true, value: { city: 'Goa' } });
+  });
+
+  it('tolerates quote-wrapped placeholders around non-string values', () => {
+    const result = applyResponseTemplate('{"rating": "{{rating}}"}', { rating: 4.7 });
+    expect(result).toEqual({ ok: true, value: { rating: 4.7 } });
+  });
+
+  it('handles a realistic mixed template with quoted and literal fields', () => {
+    const template =
+      '{"city": "{{city}}", "restaurants": [{"name": "Bean Me Up", "rating": 4.7}]}';
+    const result = applyResponseTemplate(template, { city: 'Goa' });
+    expect(result).toEqual({
+      ok: true,
+      value: { city: 'Goa', restaurants: [{ name: 'Bean Me Up', rating: 4.7 }] },
+    });
+  });
 });
