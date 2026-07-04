@@ -94,6 +94,25 @@ describe('ProposeToolCardComponent', () => {
     expect(decide).not.toHaveBeenCalled();
   });
 
+  it('flows [formField] edits of the tool name back into validation', async () => {
+    const fixture = createCard(DRAFT);
+    await fixture.whenStable();
+    const inst = fixture.componentInstance as unknown as {
+      canApprove: () => boolean;
+      nameError: () => string | null;
+    };
+    expect(inst.canApprove()).toBe(true);
+
+    // The first input in the pending card is the tool-name field.
+    const nameInput = fixture.nativeElement.querySelector('input') as HTMLInputElement;
+    nameInput.value = '';
+    nameInput.dispatchEvent(new Event('input'));
+    await fixture.whenStable();
+
+    expect(inst.nameError()).toBeTruthy();
+    expect(inst.canApprove()).toBe(false);
+  });
+
   it('blocks approval when the response template is not valid JSON', async () => {
     const fixture = createCard({ ...DRAFT, responseTemplate: '{"broken": }' });
     await fixture.whenStable();

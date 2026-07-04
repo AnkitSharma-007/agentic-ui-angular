@@ -7,7 +7,7 @@ import {
   linkedSignal,
   signal,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { applyEach, form, validate, FormField } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -37,6 +37,13 @@ interface EditableParam {
   required: boolean;
 }
 
+interface DraftForm {
+  name: string;
+  description: string;
+  responseTemplate: string;
+  parameters: EditableParam[];
+}
+
 const TYPE_OPTIONS: readonly { value: CustomToolParameterType; label: string }[] = [
   { value: 'string', label: 'string' },
   { value: 'number', label: 'number' },
@@ -57,7 +64,7 @@ function sampleValue(type: CustomToolParameterType): unknown {
 @Component({
   selector: 'app-propose-tool-card',
   imports: [
-    FormsModule,
+    FormField,
     MatButtonModule,
     MatCardModule,
     MatCheckboxModule,
@@ -89,55 +96,63 @@ export class ProposeToolCardComponent {
   protected readonly isRejected = computed(() => this.status() === 'rejected');
   protected readonly isError = computed(() => this.status() === 'error');
 
-  // Editable copies of the proposed draft. `linkedSignal` re-seeds from the
-  // incoming args (which are fixed for a given call) yet stays writable so the
-  // presenter can tweak the definition live before approving.
-  protected readonly draftName = linkedSignal(() => this.args().name);
-  protected readonly draftDescription = linkedSignal(() => this.args().description);
-  protected readonly draftTemplate = linkedSignal(() => this.args().responseTemplate);
-  protected readonly draftParams = linkedSignal<EditableParam[]>(() =>
-    this.args().parameters.map((p) => ({
+  // Editable copy of the proposed draft as a Signal Forms model. `linkedSignal`
+  // re-seeds from the incoming args (fixed for a given call) yet stays writable
+  // so the presenter can tweak the definition live before approving.
+  protected readonly draftModel = linkedSignal<DraftForm>(() => ({
+    name: this.args().name,
+    description: this.args().description,
+    responseTemplate: this.args().responseTemplate,
+    parameters: this.args().parameters.map((p) => ({
       name: p.name,
       type: p.type,
       description: p.description,
       required: p.required,
     })),
-  );
+  }));
+
+  protected readonly draft = form(this.draftModel, (p) => {
+    validate(p.name, ({ value }) => {
+      const name = value().trim();
+      const err = validateToolName(name);
+      if (err) return { kind: 'toolName', message: err };
+      if (this.customTools.isNameInUse(name)) {
+        return { kind: 'nameInUse', message: 'A tool with this name already exists — rename it.' };
+      }
+      return null;
+    });
+    validate(p.description, ({ value }) =>
+      value().trim().length === 0 ? { kind: 'required', message: 'Required.' } : null,
+    );
+    applyEach(p.parameters, (param) => {
+      validate(param.name, (ctx) => {
+        const nm = ctx.value().trim();
+        const err = validateParameterName(nm);
+        if (err) return { kind: 'paramName', message: err };
+        const count = ctx.valueOf(p.parameters).filter((q) => q.name.trim() === nm).length;
+        return count > 1 ? { kind: 'dupParam', message: 'Duplicate parameter name.' } : null;
+      });
+    });
+  });
 
   protected readonly showRejectNote = signal(false);
   protected readonly rejectionNote = signal('');
 
-  protected readonly nameError = computed<string | null>(() => {
-    const name = this.draftName().trim();
-    const err = validateToolName(name);
-    if (err) return err;
-    if (this.customTools.isNameInUse(name)) {
-      return 'A tool with this name already exists — rename it.';
-    }
-    return null;
-  });
-
-  protected readonly descriptionError = computed<string | null>(() =>
-    this.draftDescription().trim().length === 0 ? 'Required.' : null,
+  // Kept for the header/running labels and as a stable error accessor the tests
+  // read; both just project the Signal Forms state.
+  protected readonly draftName = computed(() => this.draftModel().name);
+  protected readonly nameError = computed<string | null>(
+    () => this.draft.name().errors()[0]?.message ?? null,
   );
 
-  protected readonly paramErrors = computed<readonly (string | null)[]>(() => {
-    const list = this.draftParams();
-    return list.map((p, idx) => {
-      const err = validateParameterName(p.name.trim());
-      if (err) return err;
-      const duplicate = list.findIndex((q, i) => i < idx && q.name.trim() === p.name.trim()) >= 0;
-      return duplicate ? 'Duplicate parameter name.' : null;
-    });
-  });
-
   protected readonly templatePreview = computed<{ ok: boolean; text: string }>(() => {
+    const model = this.draftModel();
     const sample: Record<string, unknown> = {};
-    for (const p of this.draftParams()) {
+    for (const p of model.parameters) {
       const name = p.name.trim();
       if (name) sample[name] = sampleValue(p.type);
     }
-    const result = applyResponseTemplate(this.draftTemplate(), sample);
+    const result = applyResponseTemplate(model.responseTemplate, sample);
     if (result.ok) {
       try {
         return { ok: true, text: JSON.stringify(result.value, null, 2) };
@@ -149,46 +164,35 @@ export class ProposeToolCardComponent {
   });
 
   protected readonly canApprove = computed(
-    () =>
-      !this.nameError() &&
-      !this.descriptionError() &&
-      !this.paramErrors().some((e) => e !== null) &&
-      this.templatePreview().ok,
+    () => this.draft().valid() && this.templatePreview().ok,
   );
 
   protected addParam(): void {
-    this.draftParams.update((list) => [
-      ...list,
-      { name: '', type: 'string', description: '', required: true },
-    ]);
+    this.draftModel.update((m) => ({
+      ...m,
+      parameters: [...m.parameters, { name: '', type: 'string', description: '', required: true }],
+    }));
   }
 
   protected removeParam(index: number): void {
-    this.draftParams.update((list) => list.filter((_, i) => i !== index));
-  }
-
-  protected updateParamName(index: number, value: string): void {
-    this.draftParams.update((list) =>
-      list.map((p, i) => (i === index ? { ...p, name: value } : p)),
-    );
+    this.draftModel.update((m) => ({
+      ...m,
+      parameters: m.parameters.filter((_, i) => i !== index),
+    }));
   }
 
   protected updateParamType(index: number, value: CustomToolParameterType): void {
-    this.draftParams.update((list) =>
-      list.map((p, i) => (i === index ? { ...p, type: value } : p)),
-    );
-  }
-
-  protected updateParamDescription(index: number, value: string): void {
-    this.draftParams.update((list) =>
-      list.map((p, i) => (i === index ? { ...p, description: value } : p)),
-    );
+    this.draftModel.update((m) => ({
+      ...m,
+      parameters: m.parameters.map((p, i) => (i === index ? { ...p, type: value } : p)),
+    }));
   }
 
   protected updateParamRequired(index: number, value: boolean): void {
-    this.draftParams.update((list) =>
-      list.map((p, i) => (i === index ? { ...p, required: value } : p)),
-    );
+    this.draftModel.update((m) => ({
+      ...m,
+      parameters: m.parameters.map((p, i) => (i === index ? { ...p, required: value } : p)),
+    }));
   }
 
   protected toggleRejectNote(): void {
@@ -202,16 +206,17 @@ export class ProposeToolCardComponent {
 
   protected async approve(): Promise<void> {
     if (!this.canApprove()) return;
+    const model = this.draftModel();
     const draft: ProposeToolDraft = {
-      name: this.draftName().trim(),
-      description: this.draftDescription().trim(),
-      parameters: this.draftParams().map((p) => ({
+      name: model.name.trim(),
+      description: model.description.trim(),
+      parameters: model.parameters.map((p) => ({
         name: p.name.trim(),
         type: p.type,
         description: p.description.trim(),
         required: p.required,
       })),
-      responseTemplate: this.draftTemplate(),
+      responseTemplate: model.responseTemplate,
     };
 
     const spec = this.customTools.finalizeDraft({ ...draft, origin: 'agent' });

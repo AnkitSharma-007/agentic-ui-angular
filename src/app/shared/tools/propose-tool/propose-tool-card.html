@@ -54,13 +54,8 @@
 
       <mat-form-field appearance="outline" class="full">
         <mat-label>Tool name</mat-label>
-        <input
-          matInput
-          [ngModel]="draftName()"
-          (ngModelChange)="draftName.set($event)"
-          placeholder="searchWeather"
-        />
-        @if (nameError(); as err) {
+        <input matInput [formField]="draft.name" placeholder="searchWeather" />
+        @if (draft.name().touched() && nameError(); as err) {
           <mat-error>{{ err }}</mat-error>
         }
         <mat-hint>Used as the function name the agent calls.</mat-hint>
@@ -68,13 +63,8 @@
 
       <mat-form-field appearance="outline" class="full">
         <mat-label>Description</mat-label>
-        <textarea
-          matInput
-          rows="2"
-          [ngModel]="draftDescription()"
-          (ngModelChange)="draftDescription.set($event)"
-        ></textarea>
-        @if (descriptionError(); as err) {
+        <textarea matInput rows="2" [formField]="draft.description"></textarea>
+        @if (draft.description().touched() && draft.description().errors()[0]?.message; as err) {
           <mat-error>{{ err }}</mat-error>
         }
       </mat-form-field>
@@ -88,21 +78,16 @@
           </button>
         </header>
 
-        @if (draftParams().length === 0) {
+        @if (draftModel().parameters.length === 0) {
           <p class="params-empty">No parameters — the agent can call this tool with no args.</p>
         } @else {
           <ul class="params">
-            @for (param of draftParams(); track $index; let i = $index) {
+            @for (param of draft.parameters; track $index; let i = $index) {
               <li class="param">
                 <mat-form-field appearance="outline" class="param-name">
                   <mat-label>Name</mat-label>
-                  <input
-                    matInput
-                    [ngModel]="param.name"
-                    (ngModelChange)="updateParamName(i, $event)"
-                    placeholder="city"
-                  />
-                  @if (paramErrors()[i]; as err) {
+                  <input matInput [formField]="param.name" placeholder="city" />
+                  @if (param.name().touched() && param.name().errors()[0]?.message; as err) {
                     <mat-error>{{ err }}</mat-error>
                   }
                 </mat-form-field>
@@ -110,8 +95,8 @@
                 <mat-form-field appearance="outline" class="param-type">
                   <mat-label>Type</mat-label>
                   <mat-select
-                    [ngModel]="param.type"
-                    (ngModelChange)="updateParamType(i, $event)"
+                    [value]="param.type().value()"
+                    (selectionChange)="updateParamType(i, $event.value)"
                   >
                     @for (opt of typeOptions; track opt.value) {
                       <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
@@ -121,18 +106,13 @@
 
                 <mat-form-field appearance="outline" class="param-desc">
                   <mat-label>Description</mat-label>
-                  <input
-                    matInput
-                    [ngModel]="param.description"
-                    (ngModelChange)="updateParamDescription(i, $event)"
-                    placeholder="City name, e.g. Goa"
-                  />
+                  <input matInput [formField]="param.description" placeholder="City name, e.g. Goa" />
                 </mat-form-field>
 
                 <div class="param-controls">
                   <mat-checkbox
-                    [ngModel]="param.required"
-                    (ngModelChange)="updateParamRequired(i, $event)"
+                    [checked]="param.required().value()"
+                    (change)="updateParamRequired(i, $event.checked)"
                   >
                     Required
                   </mat-checkbox>
@@ -158,12 +138,7 @@
         </header>
         <mat-form-field appearance="outline" class="full mono-field">
           <mat-label>Template</mat-label>
-          <textarea
-            matInput
-            rows="6"
-            [ngModel]="draftTemplate()"
-            (ngModelChange)="draftTemplate.set($event)"
-          ></textarea>
+          <textarea matInput rows="6" [formField]="draft.responseTemplate"></textarea>
         </mat-form-field>
 
         <div class="preview" [class.error]="!templatePreview().ok">
@@ -187,8 +162,8 @@
           <textarea
             matInput
             rows="2"
-            [ngModel]="rejectionNote()"
-            (ngModelChange)="rejectionNote.set($event)"
+            [value]="rejectionNote()"
+            (input)="rejectionNote.set($any($event.target).value)"
             placeholder="The agent will see this and revise its proposal."
           ></textarea>
         </mat-form-field>
