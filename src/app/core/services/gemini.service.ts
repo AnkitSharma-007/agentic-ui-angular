@@ -15,6 +15,7 @@ import {
 } from './agent-loop';
 import type { AgentEvent } from '../streaming/agent-event';
 import { AgentEventStore } from '../streaming/agent-event.store';
+import type { UserTurnInput } from '../media/attachment.types';
 import type { GeminiChunk } from '../streaming/to-agent-event.operator';
 import { InterruptService } from '../registry/interrupt.service';
 import { ToolRegistry } from '../registry/tool-registry';
@@ -97,7 +98,7 @@ export class GeminiService {
   }
 
   streamAgentTurn(
-    prompt: string,
+    input: string | UserTurnInput,
     turnId: string,
     options: StreamOptions = {},
   ): Observable<AgentEvent> {
@@ -126,7 +127,7 @@ export class GeminiService {
           };
 
           for await (const event of runAgentTurn(
-            prompt,
+            input,
             turnId,
             loopOptions,
             abort.signal,

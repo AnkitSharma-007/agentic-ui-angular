@@ -1,7 +1,15 @@
 import { Injectable, computed, signal } from '@angular/core';
 import type { AgentEvent } from './agent-event';
 import { appendChunkToContent, type HistoryContent } from './raw-history.reducer';
-import type { GeminiChunk } from './to-agent-event.operator';
+import type { GeminiChunk, GeminiPart } from './to-agent-event.operator';
+import {
+  EMPTY_USER_TURN_VIEW,
+  kindFromMime,
+  toInlineDataPart,
+  type UserTurnAttachmentView,
+  type UserTurnInput,
+  type UserTurnView,
+} from '../media/attachment.types';
 
 export type StreamPhase =
   | 'idle'
@@ -81,6 +89,16 @@ export class AgentEventStore {
     return t.thoughtText.length > 0 || t.responseText.length > 0 || t.toolCalls.length > 0;
   });
 
+  // The most recent user turn (text + media), derived from raw history so it
+  // renders identically for live turns and replays (which reload rawHistory).
+  readonly currentUserTurn = computed<UserTurnView>(() => {
+    const history = this._rawHistory();
+    for (let i = history.length - 1; i >= 0; i--) {
+      if (history[i].role === 'user') return partsToUserTurnView(history[i].parts);
+    }
+    return EMPTY_USER_TURN_VIEW;
+  });
+
   beginTurn(turnId: string, phase: 'streaming' | 'replaying' = 'streaming'): void {
     this._phase.set(phase);
     this._error.set(null);
@@ -153,8 +171,22 @@ export class AgentEventStore {
     }
   }
 
+  // Multimodal user turn: a text part (when non-empty) followed by any inline
+  // media parts. `streamRound` sends `rawHistory()` verbatim as the request
+  // contents, so attachments reach the model with no change to the loop.
+  appendUserTurn(input: UserTurnInput): void {
+    const parts: GeminiPart[] = [];
+    if (input.text && input.text.length > 0) parts.push({ text: input.text });
+    for (const attachment of input.attachments ?? []) {
+      parts.push(toInlineDataPart(attachment));
+    }
+    if (parts.length === 0) parts.push({ text: '' });
+    this._rawHistory.update((h) => [...h, { role: 'user', parts }]);
+  }
+
+  // Back-compat convenience for text-only turns.
   appendUserPrompt(prompt: string): void {
-    this._rawHistory.update((h) => [...h, { role: 'user', parts: [{ text: prompt }] }]);
+    this.appendUserTurn({ text: prompt });
   }
 
   appendToolResponses(
@@ -211,6 +243,25 @@ export class AgentEventStore {
   private updateCurrentTurn(updater: (turn: CurrentTurn) => CurrentTurn): void {
     this._currentTurn.update(updater);
   }
+}
+
+function partsToUserTurnView(parts: readonly GeminiPart[]): UserTurnView {
+  let text = '';
+  const attachments: UserTurnAttachmentView[] = [];
+  for (const part of parts) {
+    if (typeof part.text === 'string' && part.text.length > 0) text += part.text;
+    const inline = (part as Record<string, unknown>)['inlineData'] as
+      | { readonly mimeType?: string; readonly data?: string }
+      | undefined;
+    if (inline?.mimeType && inline.data) {
+      attachments.push({
+        kind: kindFromMime(inline.mimeType),
+        mimeType: inline.mimeType,
+        dataUrl: `data:${inline.mimeType};base64,${inline.data}`,
+      });
+    }
+  }
+  return { text, attachments };
 }
 
 function newToolCallState(

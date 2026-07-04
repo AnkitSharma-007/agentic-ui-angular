@@ -248,6 +248,53 @@ describe('AgentEventStore', () => {
       .toBe('searchFlights');
   });
 
+  it('appendUserTurn writes a text part followed by inlineData parts', () => {
+    store.appendUserTurn({
+      text: 'What is this place?',
+      attachments: [
+        {
+          id: 'a1',
+          kind: 'image',
+          mimeType: 'image/jpeg',
+          dataBase64: 'QUJD',
+          sizeBytes: 3,
+        },
+      ],
+    });
+    const [entry] = store.rawHistory();
+    expect(entry.role).toBe('user');
+    expect((entry.parts[0] as { text?: string }).text).toBe('What is this place?');
+    expect((entry.parts[1] as { inlineData?: { mimeType?: string; data?: string } }).inlineData)
+      .toEqual({ mimeType: 'image/jpeg', data: 'QUJD' });
+  });
+
+  it('appendUserTurn with attachments only still yields a valid user part', () => {
+    store.appendUserTurn({
+      text: '',
+      attachments: [
+        { id: 'a1', kind: 'image', mimeType: 'image/png', dataBase64: 'AAAA', sizeBytes: 3 },
+      ],
+    });
+    const [entry] = store.rawHistory();
+    expect(entry.parts).toHaveLength(1);
+    expect((entry.parts[0] as { inlineData?: unknown }).inlineData).toBeDefined();
+  });
+
+  it('currentUserTurn derives text + attachment previews from the latest user turn', () => {
+    store.appendUserPrompt('an earlier turn');
+    store.appendUserTurn({
+      text: 'Plan around this',
+      attachments: [
+        { id: 'a1', kind: 'image', mimeType: 'image/jpeg', dataBase64: 'QUJD', sizeBytes: 3 },
+      ],
+    });
+    const view = store.currentUserTurn();
+    expect(view.text).toBe('Plan around this');
+    expect(view.attachments).toEqual([
+      { kind: 'image', mimeType: 'image/jpeg', dataUrl: 'data:image/jpeg;base64,QUJD' },
+    ]);
+  });
+
   it('bumpStats accumulates chunk/part/signedPart counts', () => {
     store.beginTurn('t1');
     store.bumpStats({ chunks: 1, parts: 2, signedParts: 1 });

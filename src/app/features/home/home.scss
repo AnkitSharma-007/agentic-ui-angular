@@ -848,3 +848,251 @@
     transition: none;
   }
 }
+
+/* --- User-turn echo strip (what the user sent this turn) --- */
+.user-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  align-self: flex-end;
+  max-width: min(100%, 620px);
+  padding: 0.75rem 1rem;
+  border-radius: 16px 16px 4px 16px;
+  border: 1px solid color-mix(in srgb, var(--mat-sys-primary) 28%, var(--mat-sys-outline-variant));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--mat-sys-primary) 14%, var(--mat-sys-surface-container)),
+    color-mix(in srgb, var(--mat-sys-tertiary) 10%, var(--mat-sys-surface-container))
+  );
+  animation: response-in 0.35s ease-out;
+}
+
+.user-turn-text {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--mat-sys-on-surface);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.user-turn-media {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.user-turn-thumb {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  background-color: var(--mat-sys-surface-container-high);
+}
+
+.user-turn-file {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+  border-radius: 10px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  background-color: var(--mat-sys-surface-container-high);
+  color: var(--mat-sys-primary);
+
+  .material-symbols-outlined {
+    font-size: 32px;
+  }
+}
+
+/* --- Composer: drag-and-drop, attachment chips, attach button --- */
+.composer.is-dragging {
+  border-color: color-mix(in srgb, var(--mat-sys-primary) 65%, var(--mat-sys-outline));
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--mat-sys-primary) 16%, transparent),
+    0 10px 30px -22px color-mix(in srgb, var(--mat-sys-primary) 60%, transparent);
+
+  &::after {
+    content: 'Drop image to attach';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: inherit;
+    background-color: color-mix(in srgb, var(--mat-sys-primary) 10%, transparent);
+    color: var(--mat-sys-primary);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    pointer-events: none;
+    z-index: 2;
+  }
+}
+
+.composer-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.attachment-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.55rem 0.3rem 0.35rem;
+  border-radius: 12px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  background-color: color-mix(in srgb, var(--mat-sys-surface-container-high) 80%, transparent);
+  max-width: 220px;
+}
+
+.attachment-thumb {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--mat-sys-outline-variant);
+}
+
+.attachment-name {
+  font-size: 12px;
+  color: var(--mat-sys-on-surface-variant);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.attachment-remove {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  background-color: color-mix(in srgb, var(--mat-sys-surface-container-highest) 90%, transparent);
+  color: var(--mat-sys-on-surface-variant);
+  transition: background-color 0.14s ease, color 0.14s ease;
+
+  .material-symbols-outlined {
+    font-size: 15px;
+    line-height: 1;
+  }
+
+  &:hover:not(:disabled) {
+    background-color: var(--mat-sys-error-container);
+    color: var(--mat-sys-on-error-container);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+}
+
+.attachment-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 12px;
+  color: var(--mat-sys-error);
+
+  .material-symbols-outlined {
+    font-size: 16px;
+    line-height: 1;
+  }
+}
+
+.attach-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border-radius: 999px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  cursor: pointer;
+  background-color: color-mix(in srgb, var(--mat-sys-surface-container-high) 70%, transparent);
+  color: var(--mat-sys-on-surface-variant);
+  transition: background-color 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+
+  .material-symbols-outlined {
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  &:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--mat-sys-primary) 55%, var(--mat-sys-outline-variant));
+    color: var(--mat-sys-primary);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+}
+
+.mic-btn.is-recording {
+  border-color: color-mix(in srgb, var(--mat-sys-error) 55%, transparent);
+  background-color: color-mix(in srgb, var(--mat-sys-error) 16%, transparent);
+  color: var(--mat-sys-error);
+  animation: mic-pulse 1.4s ease-in-out infinite;
+
+  &:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--mat-sys-error) 70%, transparent);
+    color: var(--mat-sys-error);
+  }
+}
+
+@keyframes mic-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--mat-sys-error) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--mat-sys-error) 0%, transparent);
+  }
+}
+
+.mic-status {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--mat-sys-error);
+}
+
+.save-warning {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.1rem 0 0;
+  align-self: flex-end;
+  max-width: 100%;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--mat-sys-on-surface-variant);
+
+  .material-symbols-outlined {
+    font-size: 15px;
+    line-height: 1;
+    color: var(--mat-sys-primary);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mic-btn.is-recording {
+    animation: none;
+  }
+}

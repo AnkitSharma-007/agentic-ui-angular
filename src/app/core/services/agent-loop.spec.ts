@@ -224,6 +224,44 @@ describe('runAgentTurn — happy path (text only)', () => {
     expect(history[1].role).toBe('model');
   });
 
+  it('inlines attachments from a multimodal turn into the request contents', async () => {
+    const h = makeHarness({
+      responses: [[textChunk('I see a beach.'), finishChunk('STOP')]],
+    });
+
+    await drain(
+      runAgentTurn(
+        {
+          text: 'What is this?',
+          attachments: [
+            {
+              id: 'a1',
+              kind: 'image',
+              mimeType: 'image/jpeg',
+              dataBase64: 'QUJD',
+              sizeBytes: 3,
+            },
+          ],
+        },
+        't1',
+        NOOP_OPTIONS,
+        new AbortController().signal,
+        h.deps,
+      ),
+    );
+
+    const firstRequest = h.streamChunks.mock.calls[0][0] as StreamRoundRequest;
+    const contents = firstRequest.contents as ReadonlyArray<{
+      readonly role: string;
+      readonly parts: readonly Record<string, unknown>[];
+    }>;
+    const userTurn = contents.find((c) => c.role === 'user');
+    expect(userTurn?.parts).toEqual([
+      { text: 'What is this?' },
+      { inlineData: { mimeType: 'image/jpeg', data: 'QUJD' } },
+    ]);
+  });
+
   it('forwards usageMetadata to the TokenAccountantService', async () => {
     const h = makeHarness({
       responses: [

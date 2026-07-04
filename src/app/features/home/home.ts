@@ -31,6 +31,20 @@ import { AgentRegistry } from '../../core/agents/agent-registry.service';
 import { play, type ReplaySpeed } from '../../core/replay/replay-player';
 import type { AgentEvent } from '../../core/streaming/agent-event';
 import type { HistoryContent } from '../../core/streaming/raw-history.reducer';
+import { toDataUrl, type InlineAttachment } from '../../core/media/attachment.types';
+import {
+  MAX_ATTACHMENTS,
+  MAX_ATTACHMENT_BYTES,
+  downscaleImageToAttachment,
+  isImageFile,
+} from '../../core/media/image-downscale';
+import {
+  describeSpeechError,
+  isSpeechRecognitionSupported,
+  startSpeechRecognition,
+  type SpeechController,
+} from '../../core/media/speech';
+import { replaySizeWarning } from '../../core/replay/replay-size';
 import { OnboardingComponent } from '../onboarding/onboarding';
 import { ThoughtComponent } from '../../shared/thought/thought';
 import { MarkdownComponent } from '../../shared/markdown/markdown';
@@ -78,10 +92,25 @@ export class HomeComponent implements OnInit {
   private readonly injector = inject(Injector);
 
   private readonly promptArea = viewChild<ElementRef<HTMLTextAreaElement>>('promptArea');
+  private readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
 
   protected readonly prompt = signal('');
   protected readonly lastPrompt = signal('');
   protected readonly showTourBanner = signal(false);
+  protected readonly attachments = signal<readonly InlineAttachment[]>([]);
+  protected readonly attachmentError = signal<string | null>(null);
+  protected readonly isDraggingOver = signal(false);
+  protected readonly maxAttachments = MAX_ATTACHMENTS;
+
+  protected readonly micSupported = isSpeechRecognitionSupported();
+  protected readonly isRecording = signal(false);
+  protected readonly micError = signal<string | null>(null);
+  private speechController: SpeechController | null = null;
+  private micBaseText = '';
+
+  protected readonly composerNotice = computed(
+    () => this.attachmentError() ?? this.micError(),
+  );
   protected readonly phase = this.store.phase;
   protected readonly responseText = this.store.responseText;
   protected readonly toolCalls = this.store.toolCalls;
@@ -100,6 +129,7 @@ export class HomeComponent implements OnInit {
   });
 
   protected readonly saveStatus = signal<SaveStatus>('idle');
+  protected readonly saveWarning = signal<string | null>(null);
   protected readonly replaySpeed = signal<ReplaySpeed>(1);
   protected readonly speedOptions = REPLAY_SPEEDS;
   protected readonly activeReplayId = signal<string | null>(null);
@@ -138,13 +168,22 @@ export class HomeComponent implements OnInit {
   ];
 
   protected readonly canSend = computed(() => {
-    return this.apiKey.hasKey() && this.prompt().trim().length > 0 && !this.isStreaming();
+    const hasContent = this.prompt().trim().length > 0 || this.attachments().length > 0;
+    return this.apiKey.hasKey() && hasContent && !this.isStreaming();
+  });
+
+  protected readonly userTurn = this.store.currentUserTurn;
+  protected readonly showUserTurn = computed(() => {
+    if (this.phase() === 'idle') return false;
+    const turn = this.userTurn();
+    return turn.text.length > 0 || turn.attachments.length > 0;
   });
 
   private readonly cancel$ = new Subject<void>();
 
   ngOnInit(): void {
     this.showTourBanner.set(!hasTourBeenDismissed());
+    this.destroyRef.onDestroy(() => this.speechController?.abort());
 
     this.route.queryParamMap
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -201,12 +240,17 @@ export class HomeComponent implements OnInit {
 
   protected reset(): void {
     this.cancel$.next();
+    if (this.isRecording()) this.stopRecording();
     this.store.reset();
     this.agents.resetForNewTurn();
     this.tokenAccountant.clearLifetime();
     this.tokenAccountant.resetTurn();
     this.saveStatus.set('idle');
+    this.saveWarning.set(null);
     this.lastPrompt.set('');
+    this.attachments.set([]);
+    this.attachmentError.set(null);
+    this.micError.set(null);
     this.activeReplayId.set(null);
     if (this.route.snapshot.queryParamMap.has('replay')) {
       void this.router.navigate([], { queryParams: {} });
@@ -233,11 +277,13 @@ export class HomeComponent implements OnInit {
 
   protected send(): void {
     if (!this.canSend()) return;
+    if (this.isRecording()) this.stopRecording();
     this.cancel$.next();
-    const prompt = this.prompt().trim();
+    const text = this.prompt().trim();
+    const attachments = this.attachments();
     const turnId = newTurnId();
 
-    this.lastPrompt.set(prompt);
+    this.lastPrompt.set(text);
     this.saveStatus.set('idle');
     if (this.activeReplayId() !== null) {
       this.activeReplayId.set(null);
@@ -247,12 +293,125 @@ export class HomeComponent implements OnInit {
     }
 
     this.gemini
-      .streamAgentTurn(prompt, turnId)
+      .streamAgentTurn({ text, attachments }, turnId)
       .pipe(takeUntil(this.cancel$), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (event) => this.store.pushEvent(event),
         error: (err) => this.store.markError(humanizeGeminiError(err)),
       });
+
+    // Attachments are one-shot — clear them once handed to the turn.
+    this.attachments.set([]);
+    this.attachmentError.set(null);
+    this.micError.set(null);
+    this.saveWarning.set(null);
+  }
+
+  protected toggleMic(): void {
+    if (this.isStreaming()) return;
+    if (this.isRecording()) {
+      this.stopRecording();
+      return;
+    }
+    this.micError.set(null);
+    this.micBaseText = this.prompt();
+    const controller = startSpeechRecognition({
+      onTranscript: (transcript) => {
+        const base = this.micBaseText.trim();
+        this.prompt.set(base ? `${base} ${transcript}` : transcript);
+      },
+      onError: (error) => {
+        this.micError.set(describeSpeechError(error));
+        this.isRecording.set(false);
+        this.speechController = null;
+      },
+      onEnd: () => {
+        this.isRecording.set(false);
+        this.speechController = null;
+      },
+    });
+    if (!controller) {
+      this.micError.set('Voice input is not supported in this browser.');
+      return;
+    }
+    this.speechController = controller;
+    this.isRecording.set(true);
+  }
+
+  private stopRecording(): void {
+    this.speechController?.stop();
+    this.speechController = null;
+    this.isRecording.set(false);
+  }
+
+  protected openFilePicker(): void {
+    this.fileInput()?.nativeElement.click();
+  }
+
+  protected onFileInputChange(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files.length > 0) {
+      void this.addFiles(Array.from(input.files));
+    }
+    input.value = '';
+  }
+
+  protected onPaste(event: ClipboardEvent): void {
+    const files = Array.from(event.clipboardData?.files ?? []);
+    if (files.some(isImageFile)) {
+      event.preventDefault();
+      void this.addFiles(files);
+    }
+  }
+
+  protected onDragOver(event: DragEvent): void {
+    if (this.isStreaming()) return;
+    event.preventDefault();
+    this.isDraggingOver.set(true);
+  }
+
+  protected onDragLeave(): void {
+    this.isDraggingOver.set(false);
+  }
+
+  protected onDrop(event: DragEvent): void {
+    event.preventDefault();
+    this.isDraggingOver.set(false);
+    if (this.isStreaming()) return;
+    const files = Array.from(event.dataTransfer?.files ?? []);
+    if (files.length > 0) void this.addFiles(files);
+  }
+
+  protected removeAttachment(id: string): void {
+    this.attachments.update((list) => list.filter((a) => a.id !== id));
+  }
+
+  protected attachmentPreview(attachment: InlineAttachment): string {
+    return toDataUrl(attachment);
+  }
+
+  private async addFiles(files: readonly File[]): Promise<void> {
+    this.attachmentError.set(null);
+    const images = files.filter(isImageFile);
+    if (images.length < files.length) {
+      this.attachmentError.set('Only image attachments are supported for now.');
+    }
+    for (const file of images) {
+      if (this.attachments().length >= MAX_ATTACHMENTS) {
+        this.attachmentError.set(`Up to ${MAX_ATTACHMENTS} images per message.`);
+        break;
+      }
+      if (file.size > MAX_ATTACHMENT_BYTES) {
+        this.attachmentError.set('Each image must be under 4 MB.');
+        continue;
+      }
+      try {
+        const attachment = await downscaleImageToAttachment(file);
+        this.attachments.update((list) => [...list, attachment]);
+      } catch {
+        this.attachmentError.set('Could not process that image.');
+      }
+    }
   }
 
   protected setSpeed(speed: ReplaySpeed): void {
@@ -262,6 +421,7 @@ export class HomeComponent implements OnInit {
   protected async save(): Promise<void> {
     if (!this.canSave()) return;
     this.saveStatus.set('saving');
+    this.saveWarning.set(null);
     try {
       // A "saved run" is one prompt + response, so we snapshot only the
       // latest turn from the (potentially multi-turn) store.
@@ -273,6 +433,10 @@ export class HomeComponent implements OnInit {
 
       const allHistory = this.store.rawHistory();
       const rawHistory = sliceCurrentTurnHistory(allHistory);
+
+      // Self-contained replays keep media inline; warn (don't block) when the
+      // encoded run grows heavy so the user knows it may load slowly.
+      this.saveWarning.set(replaySizeWarning(rawHistory));
 
       const firstTs = events.at(0)?.ts ?? Date.now();
       const lastTs = events.at(-1)?.ts ?? firstTs;

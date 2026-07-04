@@ -93,6 +93,38 @@
       <mat-card-content>
         <div class="card-head">
           <span class="card-head-icon">
+            <mat-icon>perm_media</mat-icon>
+          </span>
+          <div class="card-head-text">
+            <h3>Images, voice &amp; saved runs</h3>
+            <p>Media stays on the same short path as everything else.</p>
+          </div>
+        </div>
+        <ul class="check-list">
+          <li>
+            <mat-icon aria-hidden="true">check_circle</mat-icon>
+            Images you attach are downscaled in your browser and sent
+            <strong>inline</strong> to <code>{{ config.geminiEndpoint }}</code> —
+            never uploaded to any other host.
+          </li>
+          <li>
+            <mat-icon aria-hidden="true">check_circle</mat-icon>
+            Voice input uses your browser's built-in speech recognition to
+            transcribe to text locally; no audio is stored or sent by this app.
+          </li>
+          <li>
+            <mat-icon aria-hidden="true">check_circle</mat-icon>
+            Saved runs (including any attached media) live only in this
+            browser's <code>IndexedDB</code> so replays stay self-contained.
+          </li>
+        </ul>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card appearance="outlined" class="card">
+      <mat-card-content>
+        <div class="card-head">
+          <span class="card-head-icon">
             <mat-icon>troubleshoot</mat-icon>
           </span>
           <div class="card-head-text">

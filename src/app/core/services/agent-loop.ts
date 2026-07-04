@@ -22,6 +22,7 @@ import type { BudgetBreach, BudgetService } from '../observability/budget.servic
 import { ZERO_USAGE, type TokenUsage } from '../observability/usage.types';
 import type { AgentRegistry } from '../agents/agent-registry.service';
 import { HANDOFF_TOOL_NAME } from '../../shared/tools/handoff-tool/handoff-tool.manifest';
+import { normalizeUserTurnInput, type UserTurnInput } from '../media/attachment.types';
 
 export const MAX_AGENT_ROUNDS = 8;
 
@@ -45,7 +46,7 @@ export interface AgentLoopDeps {
   readonly store: Pick<
     AgentEventStore,
     | 'beginTurn'
-    | 'appendUserPrompt'
+    | 'appendUserTurn'
     | 'appendToolResponses'
     | 'appendChunkToRawHistory'
     | 'bumpStats'
@@ -76,7 +77,7 @@ interface RoundOutcome {
 }
 
 export async function* runAgentTurn(
-  prompt: string,
+  input: string | UserTurnInput,
   turnId: string,
   options: AgentLoopOptions,
   signal: AbortSignal,
@@ -84,7 +85,7 @@ export async function* runAgentTurn(
 ): AsyncGenerator<AgentEvent> {
   const now = deps.now ?? Date.now;
 
-  beginTurn(turnId, prompt, deps);
+  beginTurn(turnId, normalizeUserTurnInput(input), deps);
   yield { type: 'turn_start', ts: now(), turnId };
 
   let state: StreamState = initialStreamState(turnId);
@@ -313,11 +314,11 @@ async function* applyHandoffIfRequested(
   };
 }
 
-function beginTurn(turnId: string, prompt: string, deps: AgentLoopDeps): void {
+function beginTurn(turnId: string, input: UserTurnInput, deps: AgentLoopDeps): void {
   deps.store.beginTurn(turnId);
   deps.tokenAccountant.beginTurn(turnId);
   deps.agents.resetForNewTurn();
-  deps.store.appendUserPrompt(prompt);
+  deps.store.appendUserTurn(input);
 }
 
 const EMPTY_NAME_SET: ReadonlySet<string> = new Set<string>();

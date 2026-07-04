@@ -141,6 +141,27 @@
       <app-agent-graph />
     }
 
+    @if (showUserTurn()) {
+      <section class="user-turn" aria-label="Your message">
+        @if (userTurn().attachments.length > 0) {
+          <div class="user-turn-media">
+            @for (media of userTurn().attachments; track media.dataUrl) {
+              @if (media.kind === 'image') {
+                <img class="user-turn-thumb" [src]="media.dataUrl" alt="Attached image" />
+              } @else {
+                <span class="user-turn-file" aria-label="Audio attachment">
+                  <span class="material-symbols-outlined" aria-hidden="true">graphic_eq</span>
+                </span>
+              }
+            }
+          </div>
+        }
+        @if (userTurn().text) {
+          <p class="user-turn-text">{{ userTurn().text }}</p>
+        }
+      </section>
+    }
+
     <app-thought />
 
     @if (phase() === 'streaming' && responseText().length === 0 && toolCalls().length === 0) {
@@ -264,28 +285,101 @@
             </button>
           }
         </div>
+        @if (saveWarning()) {
+          <p class="save-warning" role="status">
+            <span class="material-symbols-outlined" aria-hidden="true">database</span>
+            {{ saveWarning() }}
+          </p>
+        }
       }
 
       <div
         class="composer"
         [class.is-streaming]="isStreaming()"
         [class.is-disabled]="isStreaming()"
+        [class.is-dragging]="isDraggingOver()"
+        (dragover)="onDragOver($event)"
+        (dragleave)="onDragLeave()"
+        (drop)="onDrop($event)"
       >
+        @if (attachments().length > 0) {
+          <div class="composer-attachments" aria-label="Attachments">
+            @for (attachment of attachments(); track attachment.id) {
+              <div class="attachment-chip">
+                <img
+                  class="attachment-thumb"
+                  [src]="attachmentPreview(attachment)"
+                  alt=""
+                  aria-hidden="true"
+                />
+                <span class="attachment-name">{{ attachment.name || 'image' }}</span>
+                <button
+                  type="button"
+                  class="attachment-remove"
+                  aria-label="Remove attachment"
+                  title="Remove"
+                  [disabled]="isStreaming()"
+                  (click)="removeAttachment(attachment.id)"
+                >
+                  <span class="material-symbols-outlined" aria-hidden="true">close</span>
+                </button>
+              </div>
+            }
+          </div>
+        }
+
+        @if (composerNotice()) {
+          <p class="attachment-error" role="alert">
+            <span class="material-symbols-outlined" aria-hidden="true">warning</span>
+            {{ composerNotice() }}
+          </p>
+        }
+
         <textarea
           #promptArea
           class="composer-input"
           rows="3"
           [value]="prompt()"
           (input)="prompt.set($any($event.target).value)"
+          (paste)="onPaste($event)"
           (keydown.meta.enter)="canSend() && send()"
           (keydown.control.enter)="canSend() && send()"
           [disabled]="isStreaming()"
-          placeholder="Ask anything…"
+          placeholder="Ask anything… or drop an image"
           aria-label="Prompt"
         ></textarea>
 
         <div class="composer-footer">
           <div class="composer-hints">
+            <button
+              type="button"
+              class="attach-btn"
+              [disabled]="isStreaming()"
+              (click)="openFilePicker()"
+              title="Attach image"
+              aria-label="Attach image"
+            >
+              <span class="material-symbols-outlined" aria-hidden="true">add_photo_alternate</span>
+            </button>
+            @if (micSupported) {
+              <button
+                type="button"
+                class="attach-btn mic-btn"
+                [class.is-recording]="isRecording()"
+                [disabled]="isStreaming()"
+                [attr.aria-pressed]="isRecording()"
+                [attr.aria-label]="isRecording() ? 'Stop voice input' : 'Start voice input'"
+                [title]="isRecording() ? 'Stop voice input' : 'Voice input'"
+                (click)="toggleMic()"
+              >
+                <span class="material-symbols-outlined" aria-hidden="true">
+                  {{ isRecording() ? 'stop_circle' : 'mic' }}
+                </span>
+              </button>
+              @if (isRecording()) {
+                <span class="mic-status" role="status" aria-live="polite">Listening…</span>
+              }
+            }
             <span class="kbd-hint" aria-hidden="true">
               <kbd>{{ sendShortcutModifier }}</kbd>
               <kbd>↵</kbd>
@@ -318,6 +412,15 @@
             </button>
           }
         </div>
+
+        <input
+          #fileInput
+          type="file"
+          accept="image/*"
+          multiple
+          hidden
+          (change)="onFileInputChange($event)"
+        />
       </div>
     </form>
   </div>
