@@ -46,7 +46,8 @@ import {
   startSpeechRecognition,
   type SpeechController,
 } from '../../core/media/speech';
-import { replaySizeWarning } from '../../core/replay/replay-size';
+import { replaySizeError, replaySizeWarning } from '../../core/replay/replay-size';
+import { isValidReplayPayload } from '../../core/replay/replay.types';
 import { OnboardingComponent } from '../onboarding/onboarding';
 import { ThoughtComponent } from '../../shared/thought/thought';
 import { MarkdownComponent } from '../../shared/markdown/markdown';
@@ -448,6 +449,15 @@ export class HomeComponent implements OnInit {
       const allHistory = this.store.rawHistory();
       const rawHistory = sliceCurrentTurnHistory(allHistory);
 
+      // Refuse to persist a run past the hard cap rather than push a huge blob
+      // at IndexedDB and hit an opaque quota failure.
+      const sizeError = replaySizeError(rawHistory);
+      if (sizeError) {
+        this.saveWarning.set(sizeError);
+        this.saveStatus.set('error');
+        return;
+      }
+
       // Self-contained replays keep media inline; warn (don't block) when the
       // encoded run grows heavy so the user knows it may load slowly.
       this.saveWarning.set(replaySizeWarning(rawHistory));
@@ -504,6 +514,14 @@ export class HomeComponent implements OnInit {
       const payload = await this.replays.load(id);
       if (!payload) {
         this.store.markError(`Replay "${id}" not found.`);
+        return;
+      }
+      // Guard the untrusted stored shape before replaying it. `ensureRegistered
+      // ForReplay` re-validates each embedded spec, so invalid ones are skipped.
+      if (!isValidReplayPayload(payload)) {
+        this.store.markError(
+          "This saved run is corrupted or from an incompatible version and can't be replayed.",
+        );
         return;
       }
 

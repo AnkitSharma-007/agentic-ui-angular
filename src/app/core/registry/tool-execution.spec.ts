@@ -345,3 +345,51 @@ describe('settleToolCallsParallel', () => {
     expect(seen.sort()).toEqual(['a', 'b', 'c']);
   });
 });
+
+describe('cancellation (H1)', () => {
+  it('settleSingleCall throws immediately when the signal is already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const deps = makeDeps({ meta: NON_INTERRUPTIVE });
+
+    await expect(
+      settleSingleCall(call(), 't1', controller.signal, deps),
+    ).rejects.toThrow(/Abort/);
+  });
+
+  it('passes each call a batch signal that aborts when the parent aborts, cancelling siblings', async () => {
+    const controller = new AbortController();
+    let captured: AbortSignal | undefined;
+    const pendingDecision = vi.fn((_callId: string, signal: AbortSignal) => {
+      captured = signal;
+      return new Promise<InterruptDecision>((_, reject) => {
+        signal.addEventListener(
+          'abort',
+          () => reject(new DOMException('Aborted', 'AbortError')),
+          { once: true },
+        );
+      });
+    });
+    const deps = makeDeps({ meta: INTERRUPTIVE, pendingDecision });
+
+    const iterate = (async () => {
+      for await (const _s of settleToolCallsParallel(
+        [call({ name: 'bookFlight' })],
+        't1',
+        controller.signal,
+        deps,
+      )) {
+        void _s;
+      }
+    })();
+
+    await vi.waitFor(() => expect(captured).toBeDefined());
+    // The child signal is derived, not the parent itself…
+    expect(captured).not.toBe(controller.signal);
+    controller.abort();
+
+    await expect(iterate).rejects.toThrow(/Abort/);
+    // …and aborting the parent propagates to the batch signal.
+    expect(captured?.aborted).toBe(true);
+  });
+});

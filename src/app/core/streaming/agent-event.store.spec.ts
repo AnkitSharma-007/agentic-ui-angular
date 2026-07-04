@@ -312,6 +312,21 @@ describe('AgentEventStore', () => {
     expect(store.phase()).toBe('cancelled');
   });
 
+  it('beginTurn() prunes the previous turn\u2019s UI events but preserves rawHistory (H5)', () => {
+    store.beginTurn('t1');
+    store.appendUserPrompt('Turn one');
+    pushTextDelta(store, 't1', 'first answer');
+    store.pushEvent({ type: 'turn_complete', ts: 1, turnId: 't1', rounds: 1, finishReason: 'STOP' });
+    expect(store.events().length).toBeGreaterThan(0);
+
+    store.beginTurn('t2');
+
+    // UI events reset for the new turn…
+    expect(store.events()).toEqual([]);
+    // …but the multi-turn model context (rawHistory) is retained.
+    expect(store.rawHistory().length).toBeGreaterThan(0);
+  });
+
   it('reset() returns the store to its initial state', () => {
     store.beginTurn('t1');
     pushTextDelta(store, 't1', 'hi');

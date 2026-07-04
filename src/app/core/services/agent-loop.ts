@@ -57,6 +57,7 @@ export interface AgentLoopDeps {
     | 'appendChunkToRawHistory'
     | 'bumpStats'
     | 'rawHistory'
+    | 'loadRawHistory'
   >;
   readonly registry: Pick<ToolRegistry, 'get' | 'execute' | 'loadImpl' | 'declarations'>;
   readonly interrupts: Pick<InterruptService, 'pendingDecision'>;
@@ -94,6 +95,10 @@ export async function* runAgentTurn(
 ): AsyncGenerator<AgentEvent> {
   const now = deps.now ?? Date.now;
 
+  // Snapshot history before we append the user turn so a turn that fails before
+  // committing any model output can be rolled back (M6) — otherwise the orphaned
+  // user message lingers and a retry duplicates it.
+  const historyBeforeTurn = deps.store.rawHistory();
   beginTurn(turnId, normalizeUserTurnInput(input), deps);
   yield { type: 'turn_start', ts: now(), turnId };
 
@@ -102,52 +107,64 @@ export async function* runAgentTurn(
 
   let state: StreamState = initialStreamState(turnId);
 
-  for (let round = 0; round < MAX_AGENT_ROUNDS; round++) {
-    if (round > 0) state = nextRoundState(state);
+  try {
+    for (let round = 0; round < MAX_AGENT_ROUNDS; round++) {
+      if (round > 0) state = nextRoundState(state);
 
-    const breach = checkBudgetGuard(deps);
-    if (breach) {
-      yield budgetTerminationEvent(turnId, round, breach, now);
-      return;
-    }
+      const breach = checkBudgetGuard(deps);
+      if (breach) {
+        yield budgetTerminationEvent(turnId, round, breach, now);
+        return;
+      }
 
-    const includeSynthesis = allowSynthesis && toolsProposed < MAX_TOOL_SYNTHESIS_PER_TURN;
+      const includeSynthesis = allowSynthesis && toolsProposed < MAX_TOOL_SYNTHESIS_PER_TURN;
 
-    const outcome: RoundOutcome = yield* streamRound(
-      options.model,
-      options.thinkingConfig,
-      state,
-      turnId,
-      signal,
-      deps,
-      now,
-      includeSynthesis,
-    );
-    state = outcome.state;
-
-    if (outcome.toolCalls.length === 0) {
-      yield {
-        type: 'turn_complete',
-        ts: now(),
+      const outcome: RoundOutcome = yield* streamRound(
+        options.model,
+        options.thinkingConfig,
+        state,
         turnId,
-        rounds: round + 1,
-        finishReason: outcome.finishReason,
-      };
-      return;
+        signal,
+        deps,
+        now,
+        includeSynthesis,
+      );
+      state = outcome.state;
+
+      if (outcome.toolCalls.length === 0) {
+        yield {
+          type: 'turn_complete',
+          ts: now(),
+          turnId,
+          rounds: round + 1,
+          finishReason: outcome.finishReason,
+        };
+        return;
+      }
+
+      yield* settleRoundToolCalls(outcome.toolCalls, turnId, signal, deps, now);
+      toolsProposed += outcome.toolCalls.filter((c) => c.name === PROPOSE_TOOL_NAME).length;
+      yield* applyHandoffIfRequested(outcome.toolCalls, turnId, deps, now);
     }
 
-    yield* settleRoundToolCalls(outcome.toolCalls, turnId, signal, deps, now);
-    toolsProposed += outcome.toolCalls.filter((c) => c.name === PROPOSE_TOOL_NAME).length;
-    yield* applyHandoffIfRequested(outcome.toolCalls, turnId, deps, now);
+    yield {
+      type: 'turn_complete',
+      ts: now(),
+      turnId,
+      rounds: MAX_AGENT_ROUNDS,
+      finishReason: 'MAX_AGENT_ROUNDS',
+    };
+  } catch (err) {
+    // M6: if the turn threw before committing any model output — i.e. only the
+    // just-appended user message was added (a stream-setup failure) — roll it
+    // back so a retry doesn't append a second copy. User-initiated cancellation
+    // (signal.aborted) intentionally keeps partial context on screen, and a
+    // mid-stream failure keeps whatever was already committed.
+    if (!signal.aborted && deps.store.rawHistory().length === historyBeforeTurn.length + 1) {
+      deps.store.loadRawHistory(historyBeforeTurn);
+    }
+    throw err;
   }
-
-  yield {
-    type: 'turn_complete',
-    ts: now(),
-    turnId,
-    rounds: MAX_AGENT_ROUNDS,
-    finishReason: 'MAX_AGENT_ROUNDS',
-  };
 }
 
 async function* streamRound(
@@ -192,44 +209,62 @@ async function* streamRound(
   let latestUsage: TokenUsage = ZERO_USAGE;
   let finishReason = 'STOP';
 
-  for await (const chunk of stream) {
-    if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+  // Drive the iterator manually and race each `next()` against the abort signal.
+  // A plain `for await` only re-checks `signal.aborted` *between* chunks, so a
+  // Stop press while suspended on the network keeps the SDK stream (and cost)
+  // running until the next chunk arrives. On abort we also call `return()` to
+  // tell the SDK to tear the HTTP stream down promptly (H1).
+  const iterator = stream[Symbol.asyncIterator]();
+  try {
+    while (true) {
+      const result = await nextChunkOrAbort(iterator, signal);
+      if (result.done) break;
+      const chunk = result.value;
 
-    deps.store.appendChunkToRawHistory(chunk);
-    const { parts, signedParts } = summarizeChunk(chunk);
-    deps.store.bumpStats({ chunks: 1, parts, signedParts });
+      deps.store.appendChunkToRawHistory(chunk);
+      const { parts, signedParts } = summarizeChunk(chunk);
+      deps.store.bumpStats({ chunks: 1, parts, signedParts });
 
-    if (chunk.usageMetadata) {
-      latestUsage = toTokenUsage(chunk.usageMetadata);
+      if (chunk.usageMetadata) {
+        latestUsage = toTokenUsage(chunk.usageMetadata);
+      }
+
+      const { events, state: nextState } = chunkToEvents(chunk, state);
+      state = nextState;
+
+      for (const event of events) {
+        if (event.type === 'tool_call') {
+          toolCalls.push(event);
+        }
+        if (event.type === 'round_complete') {
+          finishReason = event.finishReason;
+          const completedAt = now();
+          deps.tokenAccountant.recordRound({
+            turnId,
+            roundIndex: event.roundIndex,
+            startedAt: roundStartedAt,
+            completedAt,
+            usage: latestUsage,
+            model,
+            finishReason: event.finishReason,
+          });
+          yield {
+            ...event,
+            latencyMs: completedAt - roundStartedAt,
+            usage: latestUsage,
+          };
+          continue;
+        }
+        yield event;
+      }
     }
-
-    const { events, state: nextState } = chunkToEvents(chunk, state);
-    state = nextState;
-
-    for (const event of events) {
-      if (event.type === 'tool_call') {
-        toolCalls.push(event);
+  } finally {
+    if (signal.aborted) {
+      try {
+        await iterator.return?.();
+      } catch {
+        // Best-effort teardown; the SDK may already have closed the stream.
       }
-      if (event.type === 'round_complete') {
-        finishReason = event.finishReason;
-        const completedAt = now();
-        deps.tokenAccountant.recordRound({
-          turnId,
-          roundIndex: event.roundIndex,
-          startedAt: roundStartedAt,
-          completedAt,
-          usage: latestUsage,
-          model,
-          finishReason: event.finishReason,
-        });
-        yield {
-          ...event,
-          latencyMs: completedAt - roundStartedAt,
-          usage: latestUsage,
-        };
-        continue;
-      }
-      yield event;
     }
   }
 
@@ -256,6 +291,27 @@ async function* streamRound(
   }
 
   return { state, toolCalls, finishReason };
+}
+
+// Await the next chunk, but reject immediately if the signal aborts while we're
+// suspended — the SDK iterator's own `next()` won't settle until the network
+// delivers another chunk, so without this a Stop press can't interrupt a slow
+// or stalled stream.
+function nextChunkOrAbort(
+  iterator: AsyncIterator<GeminiChunk>,
+  signal: AbortSignal,
+): Promise<IteratorResult<GeminiChunk>> {
+  if (signal.aborted) {
+    return Promise.reject(new DOMException('Aborted', 'AbortError'));
+  }
+  let onAbort: (() => void) | null = null;
+  const aborted = new Promise<never>((_, reject) => {
+    onAbort = () => reject(new DOMException('Aborted', 'AbortError'));
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+  return Promise.race([iterator.next(), aborted]).finally(() => {
+    if (onAbort) signal.removeEventListener('abort', onAbort);
+  });
 }
 
 async function* settleRoundToolCalls(

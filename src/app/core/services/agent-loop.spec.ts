@@ -605,6 +605,39 @@ describe('runAgentTurn — handoff', () => {
     expect(handoff?.toAgentId).toBe('experienceCurator');
     expect(h.agents.activeAgentId()).toBe('experienceCurator');
   });
+
+  it('does not switch or emit agent_handoff for an unknown specialist (H2)', async () => {
+    const tools: ToolDef[] = [
+      {
+        meta: {
+          name: HANDOFF_TOOL_NAME,
+          description: 'handoff',
+          declaration: decl(HANDOFF_TOOL_NAME),
+          interruptive: false,
+        },
+        // The real descriptor returns an { error } for unknown ids; the loop
+        // itself must also refuse to switch (switchActive no-ops).
+        execute: () => ({ error: 'Unknown specialist "ghost".' }),
+      },
+    ];
+    const h = makeHarness({
+      tools,
+      responses: [
+        [
+          toolChunk(HANDOFF_TOOL_NAME, { specialist: 'ghost', reason: 'nowhere' }),
+          finishChunk('STOP'),
+        ],
+        [textChunk('Staying put.'), finishChunk('STOP')],
+      ],
+    });
+
+    const events = await drain(
+      runAgentTurn('Go', 't1', NOOP_OPTIONS, new AbortController().signal, h.deps),
+    );
+
+    expect(events.find((e) => e.type === 'agent_handoff')).toBeUndefined();
+    expect(h.agents.activeAgentId()).toBe('tripPlanner');
+  });
 });
 
 describe('runAgentTurn — abort', () => {
@@ -633,6 +666,46 @@ describe('runAgentTurn — abort', () => {
       drain(runAgentTurn('Hi', 't1', NOOP_OPTIONS, controller.signal, h.deps)),
     ).rejects.toThrow(/Abort/);
   });
+
+  it('stops promptly and tears down the stream when aborted mid-read (H1)', async () => {
+    const controller = new AbortController();
+    const returnSpy = vi.fn(
+      async (): Promise<IteratorResult<GeminiChunk>> => ({ value: undefined, done: true }),
+    );
+    // A stream whose next() never settles — simulates a stalled network read
+    // the user wants to abandon via Stop.
+    const stalledStream: AsyncIterable<GeminiChunk> = {
+      [Symbol.asyncIterator]() {
+        return {
+          next: () => new Promise<IteratorResult<GeminiChunk>>(() => undefined),
+          return: returnSpy,
+        } as AsyncIterator<GeminiChunk>;
+      },
+    };
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    const deps: AgentLoopDeps = {
+      streamChunks: vi.fn(async () => stalledStream),
+      store: TestBed.inject(AgentEventStore),
+      registry: makeRegistry([]),
+      interrupts: TestBed.inject(InterruptService),
+      tokenAccountant: TestBed.inject(TokenAccountantService),
+      budget: TestBed.inject(BudgetService),
+      agents: TestBed.inject(AgentRegistry),
+    };
+
+    const gen = runAgentTurn('Hi', 't1', NOOP_OPTIONS, controller.signal, deps);
+    const first = await gen.next();
+    expect((first.value as AgentEvent).type).toBe('turn_start');
+
+    // This pull suspends on the stalled stream; aborting must reject it rather
+    // than hang until the (never-arriving) next chunk.
+    const suspended = gen.next();
+    controller.abort();
+    await expect(suspended).rejects.toThrow(/Abort/);
+    expect(returnSpy).toHaveBeenCalled();
+  });
 });
 
 describe('runAgentTurn — error propagation', () => {
@@ -657,7 +730,7 @@ describe('runAgentTurn — error propagation', () => {
     ).rejects.toThrow('boom');
   });
 
-  it('begins the turn and emits turn_start even when the SDK call fails', async () => {
+  it('emits turn_start but rolls back the orphaned user turn when SDK setup fails (M6)', async () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({});
     const store = TestBed.inject(AgentEventStore);
@@ -688,8 +761,50 @@ describe('runAgentTurn — error propagation', () => {
       // expected
     }
 
+    // turn_start still fires (the UI shows the turn began)…
     expect(events[0]?.type).toBe('turn_start');
-    expect(store.rawHistory().map((h) => h.role)).toEqual(['user']);
+    // …but because no model output was committed, the just-appended user turn is
+    // rolled back so a retry doesn't duplicate the message.
+    expect(store.rawHistory()).toEqual([]);
+  });
+
+  it('preserves already-committed history when a turn fails mid-stream (no over-rollback)', async () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    const store = TestBed.inject(AgentEventStore);
+    // Seed a prior successful exchange so we can prove only *this* failed turn's
+    // orphaned user entry would be affected — here nothing rolls back because a
+    // model chunk was committed before the failure.
+    async function* oneChunkThenThrow(): AsyncIterable<GeminiChunk> {
+      yield textChunk('partial');
+      throw new Error('mid-stream boom');
+    }
+    const deps: AgentLoopDeps = {
+      streamChunks: vi.fn(async () => oneChunkThenThrow()),
+      store,
+      registry: makeRegistry([]),
+      interrupts: TestBed.inject(InterruptService),
+      tokenAccountant: TestBed.inject(TokenAccountantService),
+      budget: TestBed.inject(BudgetService),
+      agents: TestBed.inject(AgentRegistry),
+    };
+
+    try {
+      for await (const _e of runAgentTurn(
+        'Hi',
+        't1',
+        NOOP_OPTIONS,
+        new AbortController().signal,
+        deps,
+      )) {
+        void _e;
+      }
+    } catch {
+      // expected
+    }
+
+    // user + partial model content both remain (length 2 > before+1).
+    expect(store.rawHistory().map((h) => h.role)).toEqual(['user', 'model']);
   });
 });
 

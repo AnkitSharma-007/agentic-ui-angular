@@ -78,3 +78,14 @@ export const BUILT_IN_AGENTS: readonly AgentDefinition[] = [
 ];
 
 export const DEFAULT_AGENT_ID = TRIP_PLANNER_AGENT.id;
+
+// The set of ids a handoff can target. Mirrors the AgentRegistry's own lookup
+// so `handoffTo` can reject an unknown specialist at execution time instead of
+// silently reporting success (H2).
+export const KNOWN_AGENT_IDS: ReadonlySet<string> = new Set(
+  BUILT_IN_AGENTS.map((a) => a.id),
+);
+
+export function isKnownAgentId(id: string): boolean {
+  return KNOWN_AGENT_IDS.has(id);
+}

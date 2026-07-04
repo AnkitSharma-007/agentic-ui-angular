@@ -20,6 +20,11 @@ export async function settleSingleCall(
   signal: AbortSignal,
   deps: ToolExecutionDeps,
 ): Promise<SettledToolCall> {
+  // Bail before doing any work if the batch was already cancelled (e.g. a
+  // sibling rejected, or the user pressed Stop) so we don't kick off a new
+  // interrupt prompt or side-effecting execution after abort (H1).
+  if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+
   const meta: ToolMeta | undefined = deps.registry.get(call.name);
   const events: AgentEvent[] = [];
 
@@ -93,14 +98,33 @@ export async function* settleToolCallsParallel(
   signal: AbortSignal,
   deps: ToolExecutionDeps,
 ): AsyncGenerator<SettledToolCall> {
+  // Thread a per-batch controller so that when the parent signal aborts — or one
+  // call rejects (e.g. an interrupt decision that aborts) — we can cancel the
+  // in-flight siblings instead of leaving them running (H1). A tool that honors
+  // its `ctx.signal` will stop; ones that don't at least aren't awaited.
+  const batch = new AbortController();
+  const onParentAbort = () => batch.abort();
+  if (signal.aborted) batch.abort();
+  else signal.addEventListener('abort', onParentAbort, { once: true });
+
   const pending = new Map<string, Promise<SettledToolCall>>();
   for (const call of calls) {
-    pending.set(call.callId, settleSingleCall(call, turnId, signal, deps));
+    pending.set(call.callId, settleSingleCall(call, turnId, batch.signal, deps));
   }
 
-  while (pending.size > 0) {
-    const settled = await Promise.race(pending.values());
-    pending.delete(settled.call.callId);
-    yield settled;
+  try {
+    while (pending.size > 0) {
+      const settled = await Promise.race(pending.values());
+      pending.delete(settled.call.callId);
+      yield settled;
+    }
+  } catch (err) {
+    batch.abort();
+    // Let the cancelled siblings unwind before propagating so their teardown
+    // doesn't surface as an unhandled rejection after we've thrown.
+    await Promise.allSettled(pending.values());
+    throw err;
+  } finally {
+    signal.removeEventListener('abort', onParentAbort);
   }
 }

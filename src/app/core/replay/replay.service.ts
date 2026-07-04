@@ -8,7 +8,7 @@ import {
   openDb,
 } from '../storage/indexeddb.helpers';
 import type { ReplayPayload, ReplaySummary } from './replay.types';
-import { toSummary } from './replay.types';
+import { isValidReplayPayload, toSummary } from './replay.types';
 
 const DB_NAME = 'agentic-ui-angular';
 const DB_VERSION = 1;
@@ -47,8 +47,10 @@ export class ReplayService {
   async refresh(): Promise<readonly ReplaySummary[]> {
     try {
       const db = await this.db();
-      const all = await idbGetAll<ReplayPayload>(db, STORE_REPLAYS);
-      const summaries = all.map(toSummary).sort(byDateDesc);
+      const all = await idbGetAll<unknown>(db, STORE_REPLAYS);
+      // Skip corrupt/tampered rows so a single bad payload can't crash the
+      // Library list (e.g. an undefined `savedAt` throwing in `byDateDesc`).
+      const summaries = all.filter(isValidReplayPayload).map(toSummary).sort(byDateDesc);
       this._summaries.set(summaries);
       this._loaded.set(true);
       this._lastError.set(null);

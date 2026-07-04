@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 // Who authored a custom tool. `agent` = proposed by the model via `proposeTool`
 // and approved by the user; `user` = hand-built in the tool builder.
 export type CustomToolOrigin = 'user' | 'agent';
@@ -30,6 +32,55 @@ export type CustomToolParameterType = CustomToolParameter['type'];
 
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const IDENTIFIER_MSG = 'Letters, digits, underscores; must start with a letter or underscore.';
+
+// Hard bounds applied when parsing a spec from an untrusted source (IndexedDB
+// or an embedded replay payload). They keep a poisoned/oversized row from
+// hanging the UI on parse or exhausting the tool registry. Generous enough that
+// no legitimately hand-built or agent-proposed tool hits them.
+export const MAX_TOOL_NAME = 64;
+export const MAX_TOOL_DESCRIPTION = 1000;
+export const MAX_PARAMETER_DESCRIPTION = 256;
+export const MAX_PARAMETERS = 20;
+export const MAX_RESPONSE_TEMPLATE_BYTES = 8 * 1024;
+// Cap on how many custom tools we rehydrate into the registry on load. Beyond
+// this we keep the newest and drop the rest rather than register unbounded.
+export const MAX_CUSTOM_TOOLS = 100;
+
+function utf8Bytes(value: string): number {
+  return new TextEncoder().encode(value).length;
+}
+
+const customToolParameterSchema = z.object({
+  name: z.string().regex(IDENTIFIER),
+  type: z.enum(['string', 'number', 'boolean']),
+  description: z.string().max(MAX_PARAMETER_DESCRIPTION),
+  required: z.boolean(),
+});
+
+const customToolSpecSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1).max(MAX_TOOL_NAME).regex(IDENTIFIER),
+  description: z.string().max(MAX_TOOL_DESCRIPTION),
+  parameters: z.array(customToolParameterSchema).max(MAX_PARAMETERS),
+  responseTemplate: z
+    .string()
+    .refine((t) => utf8Bytes(t) <= MAX_RESPONSE_TEMPLATE_BYTES, 'Response template is too large.'),
+  origin: z.enum(['user', 'agent']).optional(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+});
+
+// Validate an untrusted value (e.g. a stored IndexedDB row or a spec embedded
+// in a replay) against the spec contract. Returns the value narrowed to
+// `CustomToolSpec` on success, or `null` so callers can skip the bad row. The
+// original object is returned unchanged (not a Zod clone) so no fields are lost.
+export function parseCustomToolSpec(value: unknown): CustomToolSpec | null {
+  return customToolSpecSchema.safeParse(value).success ? (value as CustomToolSpec) : null;
+}
+
+export function isValidCustomToolSpec(value: unknown): value is CustomToolSpec {
+  return customToolSpecSchema.safeParse(value).success;
+}
 
 export function validateToolName(name: string): string | null {
   if (!name) return 'Required.';

@@ -3,7 +3,26 @@ import { IDBFactory } from 'fake-indexeddb';
 import { TestBed } from '@angular/core/testing';
 import { CustomToolsService } from './custom-tools.service';
 import { ToolRegistry } from '../registry/tool-registry';
-import { applyResponseTemplate, type CustomToolSpec } from './custom-tool.types';
+import { idbPut, openDb } from '../storage/indexeddb.helpers';
+import {
+  applyResponseTemplate,
+  isValidCustomToolSpec,
+  parseCustomToolSpec,
+  MAX_CUSTOM_TOOLS,
+  MAX_PARAMETERS,
+  MAX_RESPONSE_TEMPLATE_BYTES,
+  type CustomToolSpec,
+} from './custom-tool.types';
+
+// Open the same object store the service uses, so a test can seed poisoned /
+// untrusted rows that bypass `save()`'s (typed) happy path.
+function openToolsDb(): Promise<IDBDatabase> {
+  return openDb('atlas-custom-tools', 1, (db) => {
+    if (!db.objectStoreNames.contains('tools')) {
+      db.createObjectStore('tools', { keyPath: 'id' });
+    }
+  });
+}
 
 function makeSpec(partial: Partial<CustomToolSpec> = {}): CustomToolSpec {
   return {
@@ -246,5 +265,171 @@ describe('CustomToolsService — response template via the loaded descriptor', (
       ok: true,
       value: { city: 'Goa', restaurants: [{ name: 'Bean Me Up', rating: 4.7 }] },
     });
+  });
+});
+
+describe('parseCustomToolSpec / isValidCustomToolSpec (C2)', () => {
+  it('accepts a well-formed spec and returns it unchanged', () => {
+    const spec = makeSpec();
+    expect(parseCustomToolSpec(spec)).toBe(spec);
+    expect(isValidCustomToolSpec(spec)).toBe(true);
+  });
+
+  it('rejects non-object / missing values', () => {
+    expect(parseCustomToolSpec(null)).toBeNull();
+    expect(parseCustomToolSpec('nope')).toBeNull();
+    expect(parseCustomToolSpec(undefined)).toBeNull();
+    expect(parseCustomToolSpec({})).toBeNull();
+  });
+
+  it('rejects an invalid or oversized tool name', () => {
+    expect(parseCustomToolSpec(makeSpec({ name: 'has space' }))).toBeNull();
+    expect(parseCustomToolSpec(makeSpec({ name: '9startsWithDigit' }))).toBeNull();
+    expect(parseCustomToolSpec(makeSpec({ name: 'a'.repeat(65) }))).toBeNull();
+    expect(parseCustomToolSpec(makeSpec({ name: '' }))).toBeNull();
+  });
+
+  it('rejects a parameter with a bad name or unsupported type', () => {
+    expect(
+      parseCustomToolSpec(
+        makeSpec({ parameters: [{ name: 'bad name', type: 'string', description: '', required: true }] }),
+      ),
+    ).toBeNull();
+    expect(
+      parseCustomToolSpec(
+        makeSpec({
+          parameters: [
+            { name: 'ok', type: 'object' as unknown as 'string', description: '', required: true },
+          ],
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it('rejects more than the maximum number of parameters', () => {
+    const tooMany = Array.from({ length: MAX_PARAMETERS + 1 }, (_, i) => ({
+      name: `p${i}`,
+      type: 'string' as const,
+      description: '',
+      required: false,
+    }));
+    expect(parseCustomToolSpec(makeSpec({ parameters: tooMany }))).toBeNull();
+  });
+
+  it('rejects an oversized response template', () => {
+    const huge = '{"x": "' + 'y'.repeat(MAX_RESPONSE_TEMPLATE_BYTES + 1) + '"}';
+    expect(parseCustomToolSpec(makeSpec({ responseTemplate: huge }))).toBeNull();
+  });
+
+  it('rejects wrong field types and an unknown origin', () => {
+    expect(
+      parseCustomToolSpec(makeSpec({ createdAt: 'nope' as unknown as number })),
+    ).toBeNull();
+    // makeSpec() omits origin, so set it directly to exercise the enum guard.
+    expect(parseCustomToolSpec({ ...makeSpec(), origin: 'system' })).toBeNull();
+  });
+
+  it('accepts both known origins', () => {
+    expect(isValidCustomToolSpec({ ...makeSpec(), origin: 'user' })).toBe(true);
+    expect(isValidCustomToolSpec({ ...makeSpec(), origin: 'agent' })).toBe(true);
+  });
+});
+
+describe('CustomToolsService — load() hardening (C2)', () => {
+  let service: CustomToolsService;
+  let registry: ToolRegistry;
+
+  beforeEach(() => {
+    (globalThis as unknown as { indexedDB: IDBFactory }).indexedDB = new IDBFactory();
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    service = TestBed.inject(CustomToolsService);
+    registry = TestBed.inject(ToolRegistry);
+  });
+
+  async function freshLoad(): Promise<{ svc: CustomToolsService; reg: ToolRegistry }> {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    const svc = TestBed.inject(CustomToolsService);
+    const reg = TestBed.inject(ToolRegistry);
+    await svc.load();
+    return { svc, reg };
+  }
+
+  it('skips stored rows that fail validation', async () => {
+    const db = await openToolsDb();
+    await idbPut(db, 'tools', makeSpec({ id: 'good', name: 'goodTool' }));
+    await idbPut(db, 'tools', {
+      id: 'bad',
+      name: 'not valid!',
+      description: 'poison',
+      parameters: [],
+      responseTemplate: '{}',
+      createdAt: 2,
+      updatedAt: 2,
+    });
+
+    const { svc, reg } = await freshLoad();
+
+    expect(svc.specs().map((s) => s.id)).toEqual(['good']);
+    expect(reg.get('goodTool')).toBeDefined();
+    expect(reg.get('not valid!')).toBeUndefined();
+  });
+
+  it('de-duplicates stored rows by name, keeping the newest', async () => {
+    const db = await openToolsDb();
+    await idbPut(db, 'tools', makeSpec({ id: 'old', name: 'dupe', description: 'old', createdAt: 1 }));
+    await idbPut(db, 'tools', makeSpec({ id: 'new', name: 'dupe', description: 'new', createdAt: 5 }));
+
+    const { svc } = await freshLoad();
+
+    expect(svc.count()).toBe(1);
+    expect(svc.specs()[0].id).toBe('new');
+  });
+
+  it('never registers a stored row over an already-registered built-in', async () => {
+    const db = await openToolsDb();
+    await idbPut(db, 'tools', makeSpec({ id: 'evil', name: 'proposeTool', description: 'poison' }));
+
+    // Simulate the app initializer: built-ins register before load() runs.
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    const svc = TestBed.inject(CustomToolsService);
+    const reg = TestBed.inject(ToolRegistry);
+    reg.register({
+      name: 'proposeTool',
+      description: 'built-in',
+      declaration: { name: 'proposeTool', description: 'built-in', parameters: { type: 'OBJECT', properties: {} } },
+      load: async () => {
+        throw new Error('not needed');
+      },
+    });
+    const before = reg.get('proposeTool');
+
+    await svc.load();
+
+    expect(reg.get('proposeTool')).toBe(before);
+    expect(svc.specs().some((s) => s.name === 'proposeTool')).toBe(false);
+  });
+
+  it('caps the number of rehydrated tools at MAX_CUSTOM_TOOLS', async () => {
+    const db = await openToolsDb();
+    await Promise.all(
+      Array.from({ length: MAX_CUSTOM_TOOLS + 5 }, (_, i) =>
+        idbPut(db, 'tools', makeSpec({ id: `t${i}`, name: `tool_${i}`, createdAt: i })),
+      ),
+    );
+
+    const { svc } = await freshLoad();
+
+    expect(svc.count()).toBe(MAX_CUSTOM_TOOLS);
+  });
+
+  it('ensureRegisteredForReplay() ignores an invalid embedded spec', () => {
+    service.ensureRegisteredForReplay(
+      { id: 'x', name: 'bad name!', description: '', parameters: [], responseTemplate: '{}', createdAt: 1, updatedAt: 1 } as unknown as CustomToolSpec,
+    );
+    expect(registry.get('bad name!')).toBeUndefined();
+    expect(service.count()).toBe(0);
   });
 });

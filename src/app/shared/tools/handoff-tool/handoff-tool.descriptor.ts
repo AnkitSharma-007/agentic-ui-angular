@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { ToolDescriptor } from '../../../core/registry/tool-descriptor';
+import { isKnownAgentId, KNOWN_AGENT_IDS } from '../../../core/agents/agent-definitions';
 import { HandoffNoticeComponent } from './handoff-notice';
 import { handoffToManifest, HANDOFF_TOOL_NAME } from './handoff-tool.manifest';
 
@@ -10,11 +11,17 @@ const argsSchema = z.object({
 
 type HandoffArgs = z.infer<typeof argsSchema>;
 
-interface HandoffResult {
+interface HandoffSuccess {
   readonly acknowledged: true;
   readonly toAgentId: string;
   readonly reason: string;
 }
+
+interface HandoffFailure {
+  readonly error: string;
+}
+
+type HandoffResult = HandoffSuccess | HandoffFailure;
 
 export const handoffToDescriptor: ToolDescriptor<HandoffArgs, HandoffResult> = {
   name: HANDOFF_TOOL_NAME,
@@ -23,6 +30,12 @@ export const handoffToDescriptor: ToolDescriptor<HandoffArgs, HandoffResult> = {
   argsSchema,
   component: HandoffNoticeComponent,
   async execute(args) {
+    // Don't claim success for a specialist that doesn't exist — the registry
+    // would no-op the switch, leaving the model believing it handed off (H2).
+    if (!isKnownAgentId(args.specialist)) {
+      const known = [...KNOWN_AGENT_IDS].join(', ');
+      return { error: `Unknown specialist "${args.specialist}". Available specialists: ${known}.` };
+    }
     await new Promise((r) => setTimeout(r, 250));
     return { acknowledged: true, toAgentId: args.specialist, reason: args.reason };
   },

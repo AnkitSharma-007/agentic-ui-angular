@@ -39,9 +39,14 @@
   </div>
 
   <div class="handoff-body">
-    <span class="badge">Agent handoff</span>
-    @if (reason(); as r) {
-      <p class="reason">{{ r }}</p>
+    @if (status() === 'error' && errorMessage(); as err) {
+      <span class="badge error">Handoff failed</span>
+      <p class="reason">{{ err }}</p>
+    } @else {
+      <span class="badge">Agent handoff</span>
+      @if (reason(); as r) {
+        <p class="reason">{{ r }}</p>
+      }
     }
   </div>
 </mat-card>

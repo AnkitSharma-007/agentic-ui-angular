@@ -27,6 +27,10 @@ export function provideTools(): EnvironmentProviders {
     for (const manifest of BUILT_IN_MANIFESTS) {
       registry.register(manifest);
     }
-    void inject(CustomToolsService).load();
+    // Return (don't `void`) the promise so bootstrap awaits IndexedDB
+    // rehydration — otherwise the first agent turn can start before custom
+    // tools are registered and the model won't see them (startup race, H6).
+    // Built-ins are registered first, so `load()` never shadows them.
+    return inject(CustomToolsService).load();
   });
 }

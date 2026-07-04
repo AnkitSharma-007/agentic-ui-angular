@@ -119,6 +119,10 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--mat-sys-primary);
+
+  &.error {
+    color: var(--mat-sys-error);
+  }
 }
 
 .reason {

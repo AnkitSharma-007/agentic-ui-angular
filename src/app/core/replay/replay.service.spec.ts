@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { IDBFactory } from 'fake-indexeddb';
 import { TestBed } from '@angular/core/testing';
 import { ReplayService } from './replay.service';
+import { idbPut, openDb } from '../storage/indexeddb.helpers';
 import type { ReplayPayload } from './replay.types';
 
 function makePayload(partial: Partial<ReplayPayload> = {}): ReplayPayload {
@@ -201,6 +202,24 @@ describe('ReplayService', () => {
     expect(result).toEqual([]);
     expect(service.summaries()).toEqual([]);
     expect(service.lastError()).not.toBeNull();
+  });
+
+  it('refresh() drops corrupt/tampered rows so one bad payload cannot crash the list', async () => {
+    await service.save(makePayload({ id: 'valid', savedAt: '2026-05-15T08:00:00.000Z' }));
+
+    // Seed a poisoned row directly (bypassing save()'s typed path). It lacks the
+    // required fields, so it must never reach toSummary/byDateDesc.
+    const db = await openDb('agentic-ui-angular', 1, (d) => {
+      if (!d.objectStoreNames.contains('replays')) {
+        d.createObjectStore('replays', { keyPath: 'id' });
+      }
+    });
+    await idbPut(db, 'replays', { id: 'corrupt', schemaVersion: 1, title: 'oops' });
+
+    const summaries = await service.refresh();
+
+    expect(summaries.map((s) => s.id)).toEqual(['valid']);
+    expect(service.summaries().map((s) => s.id)).toEqual(['valid']);
   });
 
   it('clearError() resets lastError so callers can dismiss a transient failure banner', async () => {

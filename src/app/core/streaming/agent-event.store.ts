@@ -103,6 +103,11 @@ export class AgentEventStore {
     this._phase.set(phase);
     this._error.set(null);
     this._stats.set({ chunks: 0, parts: 0, signedParts: 0 });
+    // Drop the previous turn's UI events so `_events` doesn't grow unbounded
+    // across a long session (H5). Only `save()` reads `_events`, and always for
+    // the current turn; the multi-turn model context lives in `_rawHistory`,
+    // which is deliberately preserved here.
+    this._events.set([]);
     this._currentTurn.set({
       id: turnId,
       thoughtText: '',

@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { AgentEvent } from '../streaming/agent-event';
 import type { HistoryContent } from '../streaming/raw-history.reducer';
 import type { CustomToolSpec } from '../custom-tools/custom-tool.types';
@@ -44,4 +45,43 @@ export function toSummary(p: ReplayPayload): ReplaySummary {
     durationMs: p.durationMs,
     eventCount: p.eventCount,
   };
+}
+
+// Events and history parts are large discriminated unions; validating only that
+// each entry is an object with a string `type` (events) / a `parts` array
+// (history) is enough to keep a corrupt row from crashing `toSummary`, the
+// player, or `byDateDesc` without re-declaring the whole schema here.
+const eventShape = z.object({ type: z.string() });
+const historyShape = z.object({ parts: z.array(z.unknown()) });
+
+const replayPayloadSchema = z.object({
+  schemaVersion: z.literal(1),
+  id: z.string().min(1),
+  title: z.string(),
+  savedAt: z.string().min(1),
+  prompt: z.string(),
+  model: z.string(),
+  events: z.array(eventShape),
+  rawHistory: z.array(historyShape),
+  customToolSpecs: z.array(z.unknown()).optional(),
+  durationMs: z.number(),
+  eventCount: z.number(),
+  stats: z.object({
+    chunks: z.number(),
+    parts: z.number(),
+    signedParts: z.number(),
+  }),
+});
+
+// Validate an untrusted payload read from IndexedDB. On success we return the
+// original object unchanged (narrowed) so no event/history internals are lost —
+// the schema only guards the fields the app relies on, including
+// `schemaVersion`. Invalid `customToolSpecs` are filtered separately at
+// registration time via `isValidCustomToolSpec`.
+export function isValidReplayPayload(value: unknown): value is ReplayPayload {
+  return replayPayloadSchema.safeParse(value).success;
+}
+
+export function parseReplayPayload(value: unknown): ReplayPayload | null {
+  return isValidReplayPayload(value) ? value : null;
 }
