@@ -116,13 +116,8 @@
         <div class="field">
           <mat-form-field appearance="outline" class="full">
             <mat-label>Name</mat-label>
-            <input
-              matInput
-              [ngModel]="name()"
-              (ngModelChange)="name.set($event)"
-              placeholder="searchWeather"
-            />
-            @if (nameError(); as err) {
+            <input matInput [formField]="builderForm.name" placeholder="searchWeather" />
+            @if (builderForm.name().touched() && nameError(); as err) {
               <mat-error>{{ err }}</mat-error>
             }
             <mat-hint>Letters, digits, underscores. Used as the function name in API calls.</mat-hint>
@@ -135,10 +130,12 @@
             <textarea
               matInput
               rows="2"
-              [ngModel]="description()"
-              (ngModelChange)="description.set($event)"
+              [formField]="builderForm.description"
               placeholder="Get a weather forecast for a city on a specific date."
             ></textarea>
+            @if (builderForm.description().touched() && builderForm.description().errors()[0]?.message; as err) {
+              <mat-error>{{ err }}</mat-error>
+            }
             <mat-hint>The agent reads this to decide when to call the tool. Be specific.</mat-hint>
           </mat-form-field>
         </div>
@@ -152,23 +149,18 @@
             </button>
           </header>
 
-          @if (parameters().length === 0) {
+          @if (builderModel().parameters.length === 0) {
             <p class="params-empty">
               No parameters. Click "Add parameter" or skip. The agent can call this tool with no args.
             </p>
           } @else {
             <ul class="params">
-              @for (param of parameters(); track $index; let i = $index) {
+              @for (param of builderForm.parameters; track $index; let i = $index) {
                 <li class="param">
                   <mat-form-field appearance="outline" class="param-name">
                     <mat-label>Name</mat-label>
-                    <input
-                      matInput
-                      [ngModel]="param.name"
-                      (ngModelChange)="updateParameterName(i, $event)"
-                      placeholder="city"
-                    />
-                    @if (parameterErrors()[i]; as err) {
+                    <input matInput [formField]="param.name" placeholder="city" />
+                    @if (param.name().touched() && param.name().errors()[0]?.message; as err) {
                       <mat-error>{{ err }}</mat-error>
                     }
                   </mat-form-field>
@@ -176,8 +168,8 @@
                   <mat-form-field appearance="outline" class="param-type">
                     <mat-label>Type</mat-label>
                     <mat-select
-                      [ngModel]="param.type"
-                      (ngModelChange)="updateParameterType(i, $event)"
+                      [value]="param.type().value()"
+                      (selectionChange)="updateParameterType(i, $event.value)"
                     >
                       @for (opt of typeOptions; track opt.value) {
                         <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
@@ -187,18 +179,13 @@
 
                   <mat-form-field appearance="outline" class="param-desc">
                     <mat-label>Description</mat-label>
-                    <input
-                      matInput
-                      [ngModel]="param.description"
-                      (ngModelChange)="updateParameterDescription(i, $event)"
-                      placeholder="City name, e.g. Goa"
-                    />
+                    <input matInput [formField]="param.description" placeholder="City name, e.g. Goa" />
                   </mat-form-field>
 
                   <div class="param-controls">
                     <mat-checkbox
-                      [ngModel]="param.required"
-                      (ngModelChange)="updateParameterRequired(i, $event)"
+                      [checked]="param.required().value()"
+                      (change)="updateParameterRequired(i, $event.checked)"
                     >
                       Required
                     </mat-checkbox>
@@ -223,12 +210,7 @@
           </header>
           <mat-form-field appearance="outline" class="full mono-field">
             <mat-label>Template</mat-label>
-            <textarea
-              matInput
-              rows="8"
-              [ngModel]="responseTemplate()"
-              (ngModelChange)="responseTemplate.set($event)"
-            ></textarea>
+            <textarea matInput rows="8" [formField]="builderForm.responseTemplate"></textarea>
           </mat-form-field>
 
           <div class="preview" [class.error]="!templatePreview().ok">

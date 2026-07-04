@@ -13,19 +13,37 @@ async function flushPreviewFrame(fixture: ComponentFixture<unknown>): Promise<vo
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 }
 
+interface BuilderForm {
+  name: string;
+  description: string;
+  parameters: { name: string; type: string; description: string; required: boolean }[];
+  responseTemplate: string;
+}
+
 interface ToolsInternals {
-  readonly name: { (): string; set: (v: string) => void };
-  readonly description: { (): string; set: (v: string) => void };
-  readonly parameters: { (): readonly { name: string; type: string }[]; set: (v: readonly unknown[]) => void };
-  readonly responseTemplate: { (): string; set: (v: string) => void };
+  readonly builderModel: {
+    (): BuilderForm;
+    set: (v: BuilderForm) => void;
+    update: (fn: (m: BuilderForm) => BuilderForm) => void;
+  };
   readonly nameError: () => string | null;
   readonly canSave: () => boolean;
   readonly templatePreview: () => { ok: boolean; text: string };
   addParameter(): void;
   removeParameter(idx: number): void;
-  updateParameterName(idx: number, value: string): void;
   loadExample(): void;
   save(): Promise<void>;
+}
+
+function patchBuilder(inst: ToolsInternals, next: Partial<BuilderForm>): void {
+  inst.builderModel.update((m) => ({ ...m, ...next }));
+}
+
+function setParamName(inst: ToolsInternals, index: number, name: string): void {
+  inst.builderModel.update((m) => ({
+    ...m,
+    parameters: m.parameters.map((p, i) => (i === index ? { ...p, name } : p)),
+  }));
 }
 
 describe('ToolsComponent', () => {
@@ -50,18 +68,18 @@ describe('ToolsComponent', () => {
     const inst = fixture.componentInstance as unknown as ToolsInternals;
     inst.addParameter();
     inst.addParameter();
-    expect(inst.parameters()).toHaveLength(2);
+    expect(inst.builderModel().parameters).toHaveLength(2);
     inst.removeParameter(0);
-    expect(inst.parameters()).toHaveLength(1);
+    expect(inst.builderModel().parameters).toHaveLength(1);
   });
 
   it('nameError flags invalid identifiers', async () => {
     const fixture = TestBed.createComponent(ToolsComponent);
     await fixture.whenStable();
     const inst = fixture.componentInstance as unknown as ToolsInternals;
-    inst.name.set('1bad');
+    patchBuilder(inst, { name: '1bad' });
     expect(inst.nameError()).toMatch(/Letters, digits/);
-    inst.name.set('translate');
+    patchBuilder(inst, { name: 'translate' });
     expect(inst.nameError()).toBeNull();
   });
 
@@ -70,8 +88,8 @@ describe('ToolsComponent', () => {
     await fixture.whenStable();
     const inst = fixture.componentInstance as unknown as ToolsInternals;
     inst.addParameter();
-    inst.updateParameterName(0, 'city');
-    inst.responseTemplate.set('{"q": {{city}}}');
+    setParamName(inst, 0, 'city');
+    patchBuilder(inst, { responseTemplate: '{"q": {{city}}}' });
     await flushPreviewFrame(fixture);
     const preview = inst.templatePreview();
     expect(preview.ok).toBe(true);
@@ -84,8 +102,8 @@ describe('ToolsComponent', () => {
     const inst = fixture.componentInstance as unknown as ToolsInternals;
     inst.loadExample();
     await flushPreviewFrame(fixture);
-    expect(inst.name()).toBe('searchWeather');
-    expect(inst.parameters().length).toBeGreaterThan(0);
+    expect(inst.builderModel().name).toBe('searchWeather');
+    expect(inst.builderModel().parameters.length).toBeGreaterThan(0);
     expect(inst.canSave()).toBe(true);
   });
 

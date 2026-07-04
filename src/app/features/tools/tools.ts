@@ -7,7 +7,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { applyEach, form, validate, FormField } from '@angular/forms/signals';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -34,12 +34,23 @@ interface DraftParameter {
   required: boolean;
 }
 
+interface BuilderForm {
+  name: string;
+  description: string;
+  parameters: DraftParameter[];
+  responseTemplate: string;
+}
+
 const DEFAULT_TEMPLATE = '{\n  "result": "ok"\n}';
+
+function emptyBuilder(): BuilderForm {
+  return { name: '', description: '', parameters: [], responseTemplate: DEFAULT_TEMPLATE };
+}
 
 @Component({
   selector: 'app-tools',
   imports: [
-    FormsModule,
+    FormField,
     MatCardModule,
     MatButtonModule,
     MatIconModule,
@@ -59,10 +70,34 @@ export class ToolsComponent {
   protected readonly specs = this.customTools.specs;
   protected readonly editingId = signal<string | null>(null);
 
-  protected readonly name = signal('');
-  protected readonly description = signal('');
-  protected readonly parameters = signal<readonly DraftParameter[]>([]);
-  protected readonly responseTemplate = signal(DEFAULT_TEMPLATE);
+  // The whole editor is a single Signal Forms model. Validation (tool-name
+  // format + uniqueness, required description, per-parameter name rules +
+  // duplicate detection) is declared once in the schema below.
+  protected readonly builderModel = signal<BuilderForm>(emptyBuilder());
+
+  protected readonly builderForm = form(this.builderModel, (p) => {
+    validate(p.name, ({ value }) => {
+      const n = value().trim();
+      const err = validateToolName(n);
+      if (err) return { kind: 'toolName', message: err };
+      if (this.customTools.isNameInUse(n, this.editingId() ?? undefined)) {
+        return { kind: 'nameInUse', message: 'A tool with this name already exists.' };
+      }
+      return null;
+    });
+    validate(p.description, ({ value }) =>
+      value().trim().length === 0 ? { kind: 'required', message: 'A description is required.' } : null,
+    );
+    applyEach(p.parameters, (param) => {
+      validate(param.name, (ctx) => {
+        const nm = ctx.value().trim();
+        const err = validateParameterName(nm);
+        if (err) return { kind: 'paramName', message: err };
+        const count = ctx.valueOf(p.parameters).filter((q) => q.name.trim() === nm).length;
+        return count > 1 ? { kind: 'dupParam', message: 'Duplicate parameter name.' } : null;
+      });
+    });
+  });
 
   protected readonly saving = signal(false);
   protected readonly saveError = signal<string | null>(null);
@@ -74,25 +109,10 @@ export class ToolsComponent {
     { value: 'boolean', label: 'boolean' },
   ];
 
-  protected readonly nameError = computed<string | null>(() => {
-    const n = this.name().trim();
-    const err = validateToolName(n);
-    if (err) return err;
-    if (this.customTools.isNameInUse(n, this.editingId() ?? undefined)) {
-      return 'A tool with this name already exists.';
-    }
-    return null;
-  });
-
-  protected readonly parameterErrors = computed<readonly (string | null)[]>(() => {
-    const list = this.parameters();
-    return list.map((p, idx) => {
-      const err = validateParameterName(p.name);
-      if (err) return err;
-      const duplicate = list.findIndex((q, i) => i < idx && q.name === p.name) >= 0;
-      return duplicate ? 'Duplicate parameter name.' : null;
-    });
-  });
+  // Stable error accessor for the name field the template and tests read.
+  protected readonly nameError = computed<string | null>(
+    () => this.builderForm.name().errors()[0]?.message ?? null,
+  );
 
   // rAF-coalesced mirrors so the template-editor keystrokes don't re-run
   // `applyResponseTemplate` + `JSON.stringify` on every character.
@@ -106,8 +126,7 @@ export class ToolsComponent {
     let rafHandle: number | null = null;
 
     effect(() => {
-      const tpl = this.responseTemplate();
-      const params = this.parameters();
+      const { responseTemplate: tpl, parameters: params } = this.builderModel();
       if (synchronous) {
         synchronous = false;
         this.debouncedTemplate.set(tpl);
@@ -117,8 +136,9 @@ export class ToolsComponent {
       if (rafHandle !== null) return;
       rafHandle = requestAnimationFrame(() => {
         rafHandle = null;
-        this.debouncedTemplate.set(this.responseTemplate());
-        this.debouncedParameters.set(this.parameters());
+        const model = this.builderModel();
+        this.debouncedTemplate.set(model.responseTemplate);
+        this.debouncedParameters.set(model.parameters);
       });
     });
 
@@ -148,78 +168,59 @@ export class ToolsComponent {
   });
 
   protected readonly canSave = computed(
-    () =>
-      !this.nameError() &&
-      this.description().trim().length > 0 &&
-      !this.parameterErrors().some((e) => e !== null) &&
-      this.templatePreview().ok,
+    () => this.builderForm().valid() && this.templatePreview().ok,
   );
 
   protected startNew(): void {
     this.editingId.set(null);
-    this.name.set('');
-    this.description.set('');
-    this.parameters.set([]);
-    this.responseTemplate.set(DEFAULT_TEMPLATE);
+    this.builderModel.set(emptyBuilder());
     this.saveError.set(null);
     this.justSaved.set(null);
   }
 
   protected edit(spec: CustomToolSpec): void {
     this.editingId.set(spec.id);
-    this.name.set(spec.name);
-    this.description.set(spec.description);
-    this.parameters.set(
-      spec.parameters.map((p) => ({
+    this.builderModel.set({
+      name: spec.name,
+      description: spec.description,
+      parameters: spec.parameters.map((p) => ({
         name: p.name,
         type: p.type,
         description: p.description,
         required: p.required,
       })),
-    );
-    this.responseTemplate.set(spec.responseTemplate);
+      responseTemplate: spec.responseTemplate,
+    });
     this.saveError.set(null);
     this.justSaved.set(null);
   }
 
   protected addParameter(): void {
-    this.parameters.update((list) => [
-      ...list,
-      {
-        name: '',
-        type: 'string',
-        description: '',
-        required: true,
-      },
-    ]);
+    this.builderModel.update((m) => ({
+      ...m,
+      parameters: [...m.parameters, { name: '', type: 'string', description: '', required: true }],
+    }));
   }
 
   protected removeParameter(index: number): void {
-    this.parameters.update((list) => list.filter((_, i) => i !== index));
-  }
-
-  protected updateParameterName(index: number, value: string): void {
-    this.parameters.update((list) =>
-      list.map((p, i) => (i === index ? { ...p, name: value } : p)),
-    );
+    this.builderModel.update((m) => ({
+      ...m,
+      parameters: m.parameters.filter((_, i) => i !== index),
+    }));
   }
 
   protected updateParameterType(index: number, value: CustomToolParameterType): void {
-    this.parameters.update((list) =>
-      list.map((p, i) => (i === index ? { ...p, type: value } : p)),
-    );
-  }
-
-  protected updateParameterDescription(index: number, value: string): void {
-    this.parameters.update((list) =>
-      list.map((p, i) => (i === index ? { ...p, description: value } : p)),
-    );
+    this.builderModel.update((m) => ({
+      ...m,
+      parameters: m.parameters.map((p, i) => (i === index ? { ...p, type: value } : p)),
+    }));
   }
 
   protected updateParameterRequired(index: number, value: boolean): void {
-    this.parameters.update((list) =>
-      list.map((p, i) => (i === index ? { ...p, required: value } : p)),
-    );
+    this.builderModel.update((m) => ({
+      ...m,
+      parameters: m.parameters.map((p, i) => (i === index ? { ...p, required: value } : p)),
+    }));
   }
 
   protected async save(): Promise<void> {
@@ -227,19 +228,20 @@ export class ToolsComponent {
     this.saving.set(true);
     this.saveError.set(null);
     try {
+      const model = this.builderModel();
       const id = this.editingId() ?? randomId();
       const now = Date.now();
       const spec: CustomToolSpec = {
         id,
-        name: this.name().trim(),
-        description: this.description().trim(),
-        parameters: this.parameters().map((p) => ({
+        name: model.name.trim(),
+        description: model.description.trim(),
+        parameters: model.parameters.map((p) => ({
           name: p.name.trim(),
           type: p.type,
           description: p.description.trim(),
           required: p.required,
         })) as readonly CustomToolParameter[],
-        responseTemplate: this.responseTemplate(),
+        responseTemplate: model.responseTemplate,
         // Preserve provenance when editing (an agent-authored tool stays labelled
         // as such); brand-new tools built here are user-authored.
         origin: this.editingId() ? this.customTools.getById(id)?.origin ?? 'user' : 'user',
@@ -270,31 +272,21 @@ export class ToolsComponent {
 
   protected loadExample(): void {
     this.editingId.set(null);
-    this.name.set('searchWeather');
-    this.description.set('Get a weather forecast for a city on a specific date.');
-    this.parameters.set([
-      {
-        name: 'city',
-        type: 'string',
-        description: 'City name, e.g. "Goa".',
-        required: true,
-      },
-      {
-        name: 'date',
-        type: 'string',
-        description: 'Date in YYYY-MM-DD format.',
-        required: true,
-      },
-    ]);
-    this.responseTemplate.set(
-      `{
+    this.builderModel.set({
+      name: 'searchWeather',
+      description: 'Get a weather forecast for a city on a specific date.',
+      parameters: [
+        { name: 'city', type: 'string', description: 'City name, e.g. "Goa".', required: true },
+        { name: 'date', type: 'string', description: 'Date in YYYY-MM-DD format.', required: true },
+      ],
+      responseTemplate: `{
   "city": {{city}},
   "date": {{date}},
   "forecast": "Partly cloudy, 28°C with light breezes",
   "uvIndex": 6,
   "rainChance": 0.15
 }`,
-    );
+    });
     this.saveError.set(null);
     this.justSaved.set(null);
   }
