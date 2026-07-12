@@ -8,11 +8,7 @@ import {
   ModelSelectionService,
   type GeminiModelId,
 } from './model-selection.service';
-import {
-  runAgentTurn,
-  type AgentLoopDeps,
-  type StreamRoundRequest,
-} from './agent-loop';
+import { runAgentTurn, type AgentLoopDeps, type StreamRoundRequest } from './agent-loop';
 import type { AgentEvent } from '../streaming/agent-event';
 import { AgentEventStore } from '../streaming/agent-event.store';
 import type { UserTurnInput } from '../media/attachment.types';
@@ -24,7 +20,10 @@ import { BudgetService } from '../observability/budget.service';
 import { AgentRegistry } from '../agents/agent-registry.service';
 import { CustomToolsService } from '../custom-tools/custom-tools.service';
 import { ToolSynthesisSettings } from '../settings/tool-synthesis.settings';
-import { AuthError } from '../errors/app-error';
+import { AuthError, type AppError } from '../errors/app-error';
+import { normalizeError } from '../errors/normalize-error';
+import { retryWithBackoff } from '../errors/retry';
+import { LoggerService } from '../logging/logger.service';
 
 export { GEMINI_MODELS, DEFAULT_MODEL };
 export type { GeminiModelId };
@@ -78,6 +77,7 @@ export class GeminiService {
   private readonly agents = inject(AgentRegistry);
   private readonly customTools = inject(CustomToolsService);
   private readonly toolSynthesis = inject(ToolSynthesisSettings);
+  private readonly logger = inject(LoggerService);
 
   readonly selectedModel = this.modelSelection.selectedModel;
   readonly ready = computed(() => this.apiKey.hasKey());
@@ -92,16 +92,30 @@ export class GeminiService {
 
     const { GoogleGenAI: GenAI } = await loadSdk();
     const ai = new GenAI({ apiKey: trimmed });
-    const stream = await ai.models.generateContentStream({
-      model: 'gemini-3-flash-preview',
-      contents: 'Reply with one word: ok',
-      config: { thinkingConfig: { thinkingLevel: 'minimal' as SdkThinkingLevel } },
-    });
-    // Drain the iterator so the underlying HTTP connection closes cleanly.
-    for await (const _chunk of stream) {
-      void _chunk;
+    try {
+      // Setup-only retry: the probe is a one-shot with no partial output to
+      // duplicate, so a transient blip shouldn't fail the connection test.
+      const stream = await retryWithBackoff(
+        () =>
+          ai.models.generateContentStream({
+            model: 'gemini-3-flash-preview',
+            contents: 'Reply with one word: ok',
+            config: { thinkingConfig: { thinkingLevel: 'minimal' as SdkThinkingLevel } },
+          }),
+        {
+          onRetry: (error, attempt, delayMs) =>
+            this.logRetry('testConnection', error, attempt, delayMs),
+        },
+      );
+      // Drain the iterator so the underlying HTTP connection closes cleanly.
+      for await (const _chunk of stream) {
+        void _chunk;
+      }
+      return true;
+    } catch (err) {
+      // Normalize at the SDK boundary so callers get a typed, redacted error.
+      throw normalizeError(err, { op: 'testConnection' });
     }
-    return true;
   }
 
   streamAgentTurn(
@@ -127,19 +141,13 @@ export class GeminiService {
       (async () => {
         try {
           const ai = await this.createClient();
-          const deps = this.buildDeps(ai);
+          const deps = this.buildDeps(ai, turnId, abort.signal);
           const loopOptions = {
             model: options.model ?? this.selectedModel(),
             thinkingConfig: buildThinkingConfig(options),
           };
 
-          for await (const event of runAgentTurn(
-            input,
-            turnId,
-            loopOptions,
-            abort.signal,
-            deps,
-          )) {
+          for await (const event of runAgentTurn(input, turnId, loopOptions, abort.signal, deps)) {
             if (abort.signal.aborted) {
               // External abort between iterations — always terminate the
               // subscriber so callers don't sit on an open Observable.
@@ -164,19 +172,38 @@ export class GeminiService {
     });
   }
 
-  private buildDeps(ai: GoogleGenAI): AgentLoopDeps {
+  private buildDeps(ai: GoogleGenAI, turnId: string, signal: AbortSignal): AgentLoopDeps {
     return {
       streamChunks: async (req: StreamRoundRequest) => {
-        const stream = await ai.models.generateContentStream({
-          model: req.model,
-          contents: req.contents as Parameters<
-            typeof ai.models.generateContentStream
-          >[0]['contents'],
-          config: req.config as Parameters<
-            typeof ai.models.generateContentStream
-          >[0]['config'],
-        });
-        return stream as AsyncIterable<GeminiChunk>;
+        try {
+          // Setup-only retry: this wraps *establishing* the stream, before any
+          // chunk is consumed. Retrying here can't duplicate emitted output or
+          // re-bill a partially-streamed round; mid-stream failures still throw.
+          const stream = await retryWithBackoff(
+            () =>
+              ai.models.generateContentStream({
+                model: req.model,
+                contents: req.contents as Parameters<
+                  typeof ai.models.generateContentStream
+                >[0]['contents'],
+                config: req.config as Parameters<
+                  typeof ai.models.generateContentStream
+                >[0]['config'],
+              }),
+            {
+              signal,
+              onRetry: (error, attempt, delayMs) =>
+                this.logRetry('streamChunks', error, attempt, delayMs, turnId),
+            },
+          );
+          return stream as AsyncIterable<GeminiChunk>;
+        } catch (err) {
+          // Normalize at the SDK boundary and stamp the turn id so every layer
+          // above (loop, Observable, home) sees a typed, correlated error.
+          throw normalizeError(err, { op: 'streamChunks', model: req.model }).enrich({
+            correlationId: turnId,
+          });
+        }
       },
       store: this.store,
       registry: this.registry,
@@ -186,7 +213,22 @@ export class GeminiService {
       agents: this.agents,
       customToolNames: () => this.customTools.customToolNames(),
       allowToolSynthesis: () => this.toolSynthesis.enabled(),
+      logger: this.logger,
     };
+  }
+
+  private logRetry(
+    op: string,
+    error: AppError,
+    attempt: number,
+    delayMs: number,
+    turnId?: string,
+  ): void {
+    this.logger.warn(`Gemini ${op} failed; retrying (attempt ${attempt}).`, {
+      category: error.category,
+      correlationId: turnId,
+      context: { op, attempt, delayMs, code: error.code },
+    });
   }
 
   private async createClient(): Promise<GoogleGenAI> {

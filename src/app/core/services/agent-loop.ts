@@ -10,10 +10,7 @@ import {
 } from '../streaming/to-agent-event.operator';
 import type { InterruptService } from '../registry/interrupt.service';
 import type { ToolRegistry } from '../registry/tool-registry';
-import {
-  settleToolCallsParallel,
-  type SettledToolCall,
-} from '../registry/tool-execution';
+import { settleToolCallsParallel, type SettledToolCall } from '../registry/tool-execution';
 import {
   toTokenUsage,
   type TokenAccountantService,
@@ -25,12 +22,30 @@ import { HANDOFF_TOOL_NAME } from '../../shared/tools/handoff-tool/handoff-tool.
 import { PROPOSE_TOOL_NAME } from '../../shared/tools/propose-tool/propose-tool.manifest';
 import { TOOL_SYNTHESIS_CLAUSE } from '../agents/agent-definitions';
 import { normalizeUserTurnInput, type UserTurnInput } from '../media/attachment.types';
+import { NetworkError } from '../errors/app-error';
+import type { LoggerService } from '../logging/logger.service';
 
 export const MAX_AGENT_ROUNDS = 8;
 
 // Cap how many tools the agent may propose in a single turn. Prevents runaway
 // self-extension while still allowing a compose-a-couple-tools demo flow.
 export const MAX_TOOL_SYNTHESIS_PER_TURN = 2;
+
+export interface StreamTimeouts {
+  // Max wait for the FIRST chunk of a round — a thinking model can legitimately
+  // take a while before it emits anything.
+  readonly firstChunkMs: number;
+  // Max wait between chunks once the stream has started flowing.
+  readonly idleMs: number;
+}
+
+// Generous defaults: long enough not to trip on slow-but-alive streams, short
+// enough that a truly stalled connection surfaces as an error the user can act
+// on rather than an indefinite spinner.
+export const DEFAULT_STREAM_TIMEOUTS: StreamTimeouts = {
+  firstChunkMs: 60_000,
+  idleMs: 30_000,
+};
 
 export interface StreamRoundRequest {
   readonly model: string;
@@ -78,6 +93,11 @@ export interface AgentLoopDeps {
   // tests; production wires a persisted settings flag. Defaults to off.
   readonly allowToolSynthesis?: () => boolean;
   readonly now?: () => number;
+  // Best-effort logger for non-fatal diagnostics (e.g. tool-descriptor preload
+  // failures). Optional in tests; production wires LoggerService.
+  readonly logger?: Pick<LoggerService, 'warn' | 'error'>;
+  // First-chunk / inter-chunk stall timeouts. Optional; defaults applied.
+  readonly timeouts?: StreamTimeouts;
 }
 
 interface RoundOutcome {
@@ -207,10 +227,7 @@ async function* streamRound(
     config: {
       systemInstruction,
       thinkingConfig,
-      tools:
-        declarations.length > 0
-          ? [{ functionDeclarations: declarations }]
-          : undefined,
+      tools: declarations.length > 0 ? [{ functionDeclarations: declarations }] : undefined,
     },
   });
 
@@ -224,16 +241,21 @@ async function* streamRound(
   let sawUsage = false;
   let finishReason = 'STOP';
 
-  // Drive the iterator manually and race each `next()` against the abort signal.
-  // A plain `for await` only re-checks `signal.aborted` *between* chunks, so a
-  // Stop press while suspended on the network keeps the SDK stream (and cost)
-  // running until the next chunk arrives. On abort we also call `return()` to
-  // tell the SDK to tear the HTTP stream down promptly (H1).
+  // Drive the iterator manually and race each `next()` against the abort signal
+  // and a stall timeout. A plain `for await` only re-checks `signal.aborted`
+  // *between* chunks, so a Stop press (or a stalled network) while suspended
+  // would keep the SDK stream (and cost) running until the next chunk arrives.
+  // On any abnormal exit we call `return()` to tear the HTTP stream down (H1).
+  const timeouts = deps.timeouts ?? DEFAULT_STREAM_TIMEOUTS;
   const iterator = stream[Symbol.asyncIterator]();
+  let receivedFirstChunk = false;
+  let completedNormally = false;
   try {
     while (true) {
-      const result = await nextChunkOrAbort(iterator, signal);
+      const timeoutMs = receivedFirstChunk ? timeouts.idleMs : timeouts.firstChunkMs;
+      const result = await nextChunkOrAbort(iterator, signal, timeoutMs, receivedFirstChunk);
       if (result.done) break;
+      receivedFirstChunk = true;
       const chunk = result.value;
 
       deps.store.appendChunkToRawHistory(chunk);
@@ -276,8 +298,12 @@ async function* streamRound(
         yield event;
       }
     }
+    completedNormally = true;
   } finally {
-    if (signal.aborted) {
+    // Abort, stall timeout, or a throw while consuming all land here without
+    // `completedNormally` — tear the SDK stream down so the underlying HTTP
+    // connection doesn't linger (H1).
+    if (!completedNormally) {
       try {
         await iterator.return?.();
       } catch {
@@ -313,24 +339,54 @@ async function* streamRound(
   return { state, toolCalls, finishReason };
 }
 
-// Await the next chunk, but reject immediately if the signal aborts while we're
-// suspended — the SDK iterator's own `next()` won't settle until the network
-// delivers another chunk, so without this a Stop press can't interrupt a slow
-// or stalled stream.
+// Await the next chunk, but reject immediately if the signal aborts *or* the
+// stream stalls past `timeoutMs`. The SDK iterator's own `next()` won't settle
+// until the network delivers another chunk, so without this a Stop press can't
+// interrupt a slow stream and a silently-dropped connection would hang the turn
+// forever. A timeout surfaces as a typed, retryable NetworkError.
 function nextChunkOrAbort(
   iterator: AsyncIterator<GeminiChunk>,
   signal: AbortSignal,
+  timeoutMs: number,
+  receivedFirstChunk: boolean,
 ): Promise<IteratorResult<GeminiChunk>> {
   if (signal.aborted) {
     return Promise.reject(new DOMException('Aborted', 'AbortError'));
   }
   let onAbort: (() => void) | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
   const aborted = new Promise<never>((_, reject) => {
     onAbort = () => reject(new DOMException('Aborted', 'AbortError'));
     signal.addEventListener('abort', onAbort, { once: true });
   });
-  return Promise.race([iterator.next(), aborted]).finally(() => {
+
+  const racers: Promise<IteratorResult<GeminiChunk>>[] = [iterator.next(), aborted];
+  if (timeoutMs > 0) {
+    const timedOut = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(streamTimeoutError(timeoutMs, receivedFirstChunk)),
+        timeoutMs,
+      );
+    });
+    racers.push(timedOut);
+  }
+
+  return Promise.race(racers).finally(() => {
     if (onAbort) signal.removeEventListener('abort', onAbort);
+    if (timer) clearTimeout(timer);
+  });
+}
+
+function streamTimeoutError(timeoutMs: number, receivedFirstChunk: boolean): NetworkError {
+  return new NetworkError({
+    code: 'stream_timeout',
+    retryable: true,
+    userMessage:
+      'Gemini stopped responding — the connection may have stalled. Check your connection and try again.',
+    technicalMessage: `Stream timed out after ${timeoutMs}ms waiting for the ${
+      receivedFirstChunk ? 'next' : 'first'
+    } chunk.`,
   });
 }
 
@@ -343,8 +399,8 @@ async function* settleRoundToolCalls(
 ): AsyncGenerator<AgentEvent> {
   // Pre-warm descriptor lazy loads so the UI can render the right component
   // while the executor is still working. Failures are recorded by the registry
-  // (via `failedNames`) so the template can surface them; we log here to keep
-  // a console trail for live debugging.
+  // (via `failedNames`) so the template can surface them; we log here (through
+  // the app logger, redacted) to keep a trail for live debugging.
   // Skip empty names — a nameless call (L1) is settled as a synthetic error and
   // never touches the registry, so there's nothing to preload.
   const uniqueNames = Array.from(new Set(toolCalls.map((c) => c.name))).filter(
@@ -352,7 +408,11 @@ async function* settleRoundToolCalls(
   );
   for (const name of uniqueNames) {
     deps.registry.loadImpl(name).catch((err) => {
-      console.warn(`[agent-loop] Failed to preload tool descriptor "${name}":`, err);
+      deps.logger?.warn(`Failed to preload tool descriptor "${name}".`, {
+        category: 'client',
+        context: { tool: name },
+        error: err,
+      });
     });
   }
 
@@ -364,9 +424,7 @@ async function* settleRoundToolCalls(
         ts: now(),
         turnId,
         callId: call.callId,
-        reason:
-          descriptor.interruptReason ??
-          `${call.name} needs your approval before running.`,
+        reason: descriptor.interruptReason ?? `${call.name} needs your approval before running.`,
       };
     }
   }
@@ -403,9 +461,7 @@ async function* applyHandoffIfRequested(
   deps: AgentLoopDeps,
   now: () => number,
 ): AsyncGenerator<AgentEvent> {
-  const lastHandoff = [...toolCalls]
-    .reverse()
-    .find((c) => c.name === HANDOFF_TOOL_NAME);
+  const lastHandoff = [...toolCalls].reverse().find((c) => c.name === HANDOFF_TOOL_NAME);
   if (!lastHandoff) return;
 
   const args = lastHandoff.args as Record<string, unknown>;

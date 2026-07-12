@@ -28,14 +28,10 @@ function makeDeps(opts: {
   return {
     registry: {
       get: vi.fn(() => opts.meta),
-      execute:
-        opts.execute ??
-        vi.fn(async () => ({ ok: true })),
+      execute: opts.execute ?? vi.fn(async () => ({ ok: true })),
     } as unknown as ToolExecutionDeps['registry'],
     interrupts: {
-      pendingDecision:
-        opts.pendingDecision ??
-        vi.fn(async () => ({ kind: 'approve' as const })),
+      pendingDecision: opts.pendingDecision ?? vi.fn(async () => ({ kind: 'approve' as const })),
     } as unknown as ToolExecutionDeps['interrupts'],
   };
 }
@@ -60,12 +56,7 @@ describe('settleSingleCall — non-interruptive tool', () => {
     const execute = vi.fn(async () => ({ flights: ['IndiGo 6E-101'] }));
     const deps = makeDeps({ meta: NON_INTERRUPTIVE, execute });
 
-    const settled = await settleSingleCall(
-      call(),
-      't1',
-      new AbortController().signal,
-      deps,
-    );
+    const settled = await settleSingleCall(call(), 't1', new AbortController().signal, deps);
 
     expect(execute).toHaveBeenCalledOnce();
     expect(execute).toHaveBeenCalledWith(
@@ -97,12 +88,7 @@ describe('settleSingleCall — non-interruptive tool', () => {
     });
     const deps = makeDeps({ meta: NON_INTERRUPTIVE, execute });
 
-    const settled = await settleSingleCall(
-      call(),
-      't1',
-      new AbortController().signal,
-      deps,
-    );
+    const settled = await settleSingleCall(call(), 't1', new AbortController().signal, deps);
 
     expect(settled.events).toHaveLength(1);
     expect(settled.events[0]).toMatchObject({
@@ -119,14 +105,23 @@ describe('settleSingleCall — non-interruptive tool', () => {
     });
     const deps = makeDeps({ meta: NON_INTERRUPTIVE, execute });
 
-    const settled = await settleSingleCall(
-      call(),
-      't1',
-      new AbortController().signal,
-      deps,
-    );
+    const settled = await settleSingleCall(call(), 't1', new AbortController().signal, deps);
 
     expect(settled.responseForModel).toEqual({ error: 'plain string' });
+  });
+
+  it('redacts secrets from the tool error before it reaches the model', async () => {
+    const execute = vi.fn(async () => {
+      throw new Error('Upstream rejected key AIzaSyA1234567890abcdefghijklmnopqrstuvwx');
+    });
+    const deps = makeDeps({ meta: NON_INTERRUPTIVE, execute });
+
+    const settled = await settleSingleCall(call(), 't1', new AbortController().signal, deps);
+
+    const { error } = settled.responseForModel as { error: string };
+    expect(error).toContain('Upstream rejected key');
+    expect(error).toContain('[redacted]');
+    expect(error).not.toContain('AIzaSyA1234567890');
   });
 });
 
@@ -160,9 +155,7 @@ describe('settleSingleCall — nameless call (L1)', () => {
 
 describe('settleSingleCall — interruptive tool, approve branch', () => {
   it('awaits pendingDecision, emits interrupt_resolved, then runs executor', async () => {
-    const pendingDecision = vi.fn(
-      async (): Promise<InterruptDecision> => ({ kind: 'approve' }),
-    );
+    const pendingDecision = vi.fn(async (): Promise<InterruptDecision> => ({ kind: 'approve' }));
     const execute = vi.fn(async () => ({ confirmation: 'CONF-42' }));
     const deps = makeDeps({ meta: INTERRUPTIVE, pendingDecision, execute });
 
@@ -245,9 +238,7 @@ describe('settleSingleCall — interruptive tool, reject branch', () => {
   });
 
   it('falls back to "Cancelled by user." when no note is provided', async () => {
-    const pendingDecision = vi.fn(
-      async (): Promise<InterruptDecision> => ({ kind: 'reject' }),
-    );
+    const pendingDecision = vi.fn(async (): Promise<InterruptDecision> => ({ kind: 'reject' }));
     const deps = makeDeps({ meta: INTERRUPTIVE, pendingDecision });
 
     const settled = await settleSingleCall(
@@ -380,9 +371,7 @@ describe('cancellation (H1)', () => {
     controller.abort();
     const deps = makeDeps({ meta: NON_INTERRUPTIVE });
 
-    await expect(
-      settleSingleCall(call(), 't1', controller.signal, deps),
-    ).rejects.toThrow(/Abort/);
+    await expect(settleSingleCall(call(), 't1', controller.signal, deps)).rejects.toThrow(/Abort/);
   });
 
   it('passes each call a batch signal that aborts when the parent aborts, cancelling siblings', async () => {
@@ -391,11 +380,9 @@ describe('cancellation (H1)', () => {
     const pendingDecision = vi.fn((_callId: string, signal: AbortSignal) => {
       captured = signal;
       return new Promise<InterruptDecision>((_, reject) => {
-        signal.addEventListener(
-          'abort',
-          () => reject(new DOMException('Aborted', 'AbortError')),
-          { once: true },
-        );
+        signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), {
+          once: true,
+        });
       });
     });
     const deps = makeDeps({ meta: INTERRUPTIVE, pendingDecision });

@@ -10,6 +10,7 @@ import { HomeComponent } from './home';
 import { GeminiService } from '../../core/services/gemini.service';
 import { ApiKeyService } from '../../core/services/api-key.service';
 import { AgentEventStore } from '../../core/streaming/agent-event.store';
+import { NotificationService } from '../../shared/notifications/notification.service';
 import type { AgentEvent } from '../../core/streaming/agent-event';
 import type { InlineAttachment } from '../../core/media/attachment.types';
 
@@ -58,11 +59,7 @@ describe('HomeComponent.send()', () => {
     (globalThis as unknown as { indexedDB: IDBFactory }).indexedDB = new IDBFactory();
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
-      providers: [
-        provideZonelessChangeDetection(),
-        provideAnimationsAsync(),
-        provideRouter([]),
-      ],
+      providers: [provideZonelessChangeDetection(), provideAnimationsAsync(), provideRouter([])],
     });
     TestBed.inject(ApiKeyService).setForSession('test-key');
   });
@@ -115,6 +112,57 @@ describe('HomeComponent.send()', () => {
 
     expect(store.phase()).toBe('error');
     expect(store.error()).toBeTruthy();
+  });
+
+  it('raises a Retry toast for a transient (network) stream failure', async () => {
+    const { instance, gemini, store } = await createHome();
+    const stream = new Subject<AgentEvent>();
+    vi.spyOn(gemini, 'streamAgentTurn').mockReturnValue(stream.asObservable());
+    const notifications = TestBed.inject(NotificationService);
+
+    instance.prompt.set('hi');
+    instance.send();
+    stream.error(new Error('Failed to fetch'));
+
+    // Terminal inline banner still records the failure…
+    expect(store.phase()).toBe('error');
+    // …and a transient failure additionally offers a one-tap Retry toast.
+    const toast = notifications.items().find((n) => n.kind === 'error');
+    expect(toast?.action?.label).toBe('Retry');
+
+    notifications.clear();
+  });
+
+  it('does not toast for a non-transient stream failure (inline banner only)', async () => {
+    const { instance, gemini, store } = await createHome();
+    const stream = new Subject<AgentEvent>();
+    vi.spyOn(gemini, 'streamAgentTurn').mockReturnValue(stream.asObservable());
+    const notifications = TestBed.inject(NotificationService);
+
+    instance.prompt.set('hi');
+    instance.send();
+    stream.error(new Error('kaboom'));
+
+    expect(store.phase()).toBe('error');
+    expect(notifications.items()).toHaveLength(0);
+  });
+
+  it('does not send while offline and warns the user', async () => {
+    const { instance, gemini } = await createHome();
+    const spy = vi
+      .spyOn(gemini, 'streamAgentTurn')
+      .mockReturnValue(EMPTY as Observable<AgentEvent>);
+    const notifications = TestBed.inject(NotificationService);
+
+    window.dispatchEvent(new Event('offline'));
+    instance.prompt.set('hi');
+    instance.send();
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(notifications.items().some((n) => n.kind === 'warn')).toBe(true);
+
+    window.dispatchEvent(new Event('online'));
+    notifications.clear();
   });
 
   it('does not send without an API key', async () => {

@@ -72,9 +72,7 @@ describe('GeminiService', () => {
 
   describe('streamAgentTurn', () => {
     it('errors with MissingApiKeyError when no key is set (SDK never called)', async () => {
-      const { events, error, completed } = await collect(
-        gemini.streamAgentTurn('hi', 'turn-1'),
-      );
+      const { events, error, completed } = await collect(gemini.streamAgentTurn('hi', 'turn-1'));
 
       expect(completed).toBe(false);
       expect(events).toHaveLength(0);
@@ -133,6 +131,37 @@ describe('GeminiService', () => {
 
       expect(completed).toBe(false);
       expect((error as Error).message).toContain('boom');
+    });
+
+    it('does not retry a non-retryable setup failure', async () => {
+      apiKey.setForSession('test-key');
+      generateContentStream.mockRejectedValueOnce(new Error('500 upstream boom'));
+
+      await collect(gemini.streamAgentTurn('hi', 'turn-1'));
+
+      // Unknown/5xx is not classified as retryable: exactly one attempt.
+      expect(generateContentStream).toHaveBeenCalledTimes(1);
+    });
+
+    it('retries a transient (network) setup failure with backoff before surfacing it', async () => {
+      vi.useFakeTimers();
+      try {
+        apiKey.setForSession('test-key');
+        generateContentStream.mockReset();
+        generateContentStream.mockRejectedValue(new Error('Failed to fetch'));
+
+        const resultPromise = collect(gemini.streamAgentTurn('hi', 'turn-1'));
+        // Drive both backoff sleeps to completion.
+        await vi.advanceTimersByTimeAsync(20_000);
+        const { error, completed } = await resultPromise;
+
+        expect(completed).toBe(false);
+        expect(error).toBeDefined();
+        // Default policy: 1 try + 2 retries.
+        expect(generateContentStream).toHaveBeenCalledTimes(3);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 

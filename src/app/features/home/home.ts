@@ -23,6 +23,9 @@ import { MatIconModule } from '@angular/material/icon';
 import { ApiKeyService } from '../../core/services/api-key.service';
 import { GeminiService } from '../../core/services/gemini.service';
 import { humanizeGeminiError } from '../../core/errors';
+import { ErrorService } from '../../core/errors/error.service';
+import { NotificationService } from '../../shared/notifications/notification.service';
+import { ConnectivityService } from '../../core/connectivity/connectivity.service';
 import { AgentEventStore, type ToolCallState } from '../../core/streaming/agent-event.store';
 import { ToolRegistry } from '../../core/registry/tool-registry';
 import { ReplayService } from '../../core/replay/replay.service';
@@ -56,6 +59,7 @@ import { OnboardingComponent } from '../onboarding/onboarding';
 import { ThoughtComponent } from '../../shared/thought/thought';
 import { MarkdownComponent } from '../../shared/markdown/markdown';
 import { AgentGraphComponent } from '../../shared/agent-graph/agent-graph';
+import { ToolErrorFallbackComponent } from '../../shared/error-boundary/tool-error-fallback';
 
 const REPLAY_SPEEDS: readonly ReplaySpeed[] = [0.5, 1, 2, 4];
 
@@ -77,6 +81,7 @@ interface SamplePrompt {
     ThoughtComponent,
     MarkdownComponent,
     AgentGraphComponent,
+    ToolErrorFallbackComponent,
     MatCardModule,
     MatButtonModule,
     MatIconModule,
@@ -92,6 +97,9 @@ export class HomeComponent implements OnInit {
   protected readonly registry = inject(ToolRegistry);
   protected readonly replays = inject(ReplayService);
   private readonly customTools = inject(CustomToolsService);
+  private readonly errors = inject(ErrorService);
+  private readonly notifications = inject(NotificationService);
+  private readonly connectivity = inject(ConnectivityService);
   private readonly tokenAccountant = inject(TokenAccountantService);
   private readonly agents = inject(AgentRegistry);
   private readonly router = inject(Router);
@@ -116,17 +124,12 @@ export class HomeComponent implements OnInit {
   private speechController: SpeechController | null = null;
   private micBaseText = '';
 
-  protected readonly composerNotice = computed(
-    () => this.attachmentError() ?? this.micError(),
-  );
+  protected readonly composerNotice = computed(() => this.attachmentError() ?? this.micError());
   protected readonly phase = this.store.phase;
   protected readonly responseText = this.store.responseText;
   protected readonly toolCalls = this.store.toolCalls;
   protected readonly displayedToolCalls = computed(() =>
-    collapseSingletonCards(
-      this.toolCalls(),
-      (name) => this.registry.get(name)?.singleton ?? false,
-    ),
+    collapseSingletonCards(this.toolCalls(), (name) => this.registry.get(name)?.singleton ?? false),
   );
   protected readonly errorMessage = this.store.error;
   protected readonly stats = this.store.stats;
@@ -203,19 +206,17 @@ export class HomeComponent implements OnInit {
     this.showTourBanner.set(!hasTourBeenDismissed());
     this.destroyRef.onDestroy(() => this.speechController?.abort());
 
-    this.route.queryParamMap
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((params) => {
-        const replayId = params.get('replay');
-        if (replayId) {
-          void this.loadAndReplay(replayId);
-          return;
-        }
-        const prefill = params.get('prompt');
-        if (prefill && prefill.trim().length > 0) {
-          this.applyPromptPrefill(prefill);
-        }
-      });
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      const replayId = params.get('replay');
+      if (replayId) {
+        void this.loadAndReplay(replayId);
+        return;
+      }
+      const prefill = params.get('prompt');
+      if (prefill && prefill.trim().length > 0) {
+        this.applyPromptPrefill(prefill);
+      }
+    });
   }
 
   protected dismissTourBanner(): void {
@@ -245,10 +246,7 @@ export class HomeComponent implements OnInit {
   // `afterNextRender` waits for the textarea to actually exist in the DOM —
   // a `queueMicrotask` fires before zoneless CD has flushed and silently misses.
   private focusPromptArea(): void {
-    afterNextRender(
-      () => this.promptArea()?.nativeElement.focus(),
-      { injector: this.injector },
-    );
+    afterNextRender(() => this.promptArea()?.nativeElement.focus(), { injector: this.injector });
   }
 
   protected cancel(): void {
@@ -353,6 +351,16 @@ export class HomeComponent implements OnInit {
 
   protected send(): void {
     if (!this.canSend()) return;
+    // Offline gating: fail fast with a clear, actionable toast instead of
+    // firing a request that can only time out. `navigator.onLine` is coarse, so
+    // we gate only the obviously-offline case; real failures still surface via
+    // the streaming error path below.
+    if (this.connectivity.offline()) {
+      this.notifications.warn("You're offline. Reconnect to the internet and try again.", {
+        dedupeKey: 'offline-send',
+      });
+      return;
+    }
     if (this.isRecording()) this.stopRecording();
     this.cancel$.next();
     const text = this.prompt().trim();
@@ -372,7 +380,7 @@ export class HomeComponent implements OnInit {
       .pipe(takeUntil(this.cancel$), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (event) => this.store.pushEvent(event),
-        error: (err) => this.store.markError(humanizeGeminiError(err)),
+        error: (err) => this.onTurnError(err, turnId),
       });
 
     // Attachments are one-shot — clear them once handed to the turn.
@@ -380,6 +388,31 @@ export class HomeComponent implements OnInit {
     this.attachmentError.set(null);
     this.micError.set(null);
     this.saveWarning.set(null);
+  }
+
+  // Central handling for a failed streaming turn. The error is routed through
+  // ErrorService for consistent classification, redaction, logging, and turn
+  // correlation. The terminal inline banner (driven by `store.error()`) remains
+  // the persistent record of the failure; on top of that, transient (retryable)
+  // failures also raise a lightweight toast with a one-tap Retry so recovery is
+  // reachable even when the banner has scrolled out of view. User cancellation
+  // is silent and never marks the turn as errored.
+  private onTurnError(err: unknown, turnId: string): void {
+    const appError = this.errors.handle(err, {
+      surface: 'none',
+      correlationId: turnId,
+      context: { feature: 'home', op: 'streamAgentTurn' },
+    });
+    if (appError.isSilent) return;
+
+    this.store.markError(appError.userMessage);
+
+    if (appError.retryable) {
+      this.notifications.error(appError.userMessage, {
+        action: { label: 'Retry', handler: () => this.retryLast() },
+        dedupeKey: `turn-error:${appError.category}:${appError.code ?? ''}`,
+      });
+    }
   }
 
   // Re-run the last submitted prompt after a failed turn. Reuses `send()`,
@@ -513,9 +546,7 @@ export class HomeComponent implements OnInit {
       // latest turn from the (potentially multi-turn) store.
       const turnId = this.store.currentTurn().id;
       const allEvents = this.store.events();
-      const events = turnId
-        ? allEvents.filter((e) => e.turnId === turnId)
-        : allEvents;
+      const events = turnId ? allEvents.filter((e) => e.turnId === turnId) : allEvents;
 
       const allHistory = this.store.rawHistory();
       const rawHistory = sliceCurrentTurnHistory(allHistory);
@@ -563,9 +594,7 @@ export class HomeComponent implements OnInit {
 
   // Map the tool_call events of a turn to the specs of any custom tools they
   // invoked. Names not owned by CustomToolsService (built-ins) are skipped.
-  private collectCustomToolSpecs(
-    events: readonly AgentEvent[],
-  ): readonly CustomToolSpec[] {
+  private collectCustomToolSpecs(events: readonly AgentEvent[]): readonly CustomToolSpec[] {
     const owned = this.customTools.customToolNames();
     const wanted = new Set<string>();
     for (const event of events) {
@@ -645,9 +674,7 @@ export class HomeComponent implements OnInit {
     }
   }
 
-  private async preloadToolDescriptors(
-    events: readonly AgentEvent[],
-  ): Promise<void> {
+  private async preloadToolDescriptors(events: readonly AgentEvent[]): Promise<void> {
     const toolNames = new Set<string>();
     for (const event of events) {
       if (event.type === 'tool_call' && this.registry.get(event.name)) {
@@ -658,15 +685,10 @@ export class HomeComponent implements OnInit {
     const names = [...toolNames];
     // allSettled so one failure doesn't block siblings — failures land in
     // `registry.failedNames` for the template's "Failed to load" affordance.
-    const results = await Promise.allSettled(
-      names.map((name) => this.registry.loadImpl(name)),
-    );
+    const results = await Promise.allSettled(names.map((name) => this.registry.loadImpl(name)));
     for (const [i, result] of results.entries()) {
       if (result.status === 'rejected') {
-        console.warn(
-          `[replay] Failed to preload tool descriptor "${names[i]}":`,
-          result.reason,
-        );
+        console.warn(`[replay] Failed to preload tool descriptor "${names[i]}":`, result.reason);
       }
     }
   }
@@ -700,9 +722,7 @@ function deriveTitle(prompt: string): string {
 
 // Slice of raw history from the last `role: 'user'` entry onwards — the
 // current turn's Content[] view. Falls back to the full history if absent.
-function sliceCurrentTurnHistory(
-  history: readonly HistoryContent[],
-): readonly HistoryContent[] {
+function sliceCurrentTurnHistory(history: readonly HistoryContent[]): readonly HistoryContent[] {
   for (let i = history.length - 1; i >= 0; i--) {
     if (history[i].role === 'user') return history.slice(i);
   }
@@ -734,9 +754,7 @@ function collapseSingletonCards(
     else if (keptFailed === candFailed) winners.set(call.name, call);
   }
   if (!hasSingleton) return calls;
-  return calls.filter(
-    (c) => !isSingleton(c.name) || winners.get(c.name)?.callId === c.callId,
-  );
+  return calls.filter((c) => !isSingleton(c.name) || winners.get(c.name)?.callId === c.callId);
 }
 
 const TOUR_DISMISSED_KEY = 'atlas.tour.dismissed';

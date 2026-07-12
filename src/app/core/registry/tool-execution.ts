@@ -2,6 +2,7 @@ import type { AgentEvent, ToolCallEvent } from '../streaming/agent-event';
 import type { InterruptDecision, InterruptService } from '../registry/interrupt.service';
 import type { ToolMeta, ToolExecutionContext } from './tool-descriptor';
 import type { ToolRegistry } from './tool-registry';
+import { redactString } from '../logging/redact';
 
 export interface SettledToolCall {
   readonly call: ToolCallEvent;
@@ -98,7 +99,12 @@ export async function settleSingleCall(
     });
     return { call, events, responseForModel: result };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    // This error string is sent back to the model *and* shown in the tool card,
+    // so redact it (a tool could surface a key/URL in its message) before it
+    // leaves the executor. Kept as the tool's own message — humanized only by
+    // trimming to the message (never a raw stack).
+    const raw = err instanceof Error ? err.message : String(err);
+    const message = redactString(raw) || 'The tool failed to produce a result.';
     const responseForModel = { error: message } as const;
     events.push({
       type: 'tool_result',

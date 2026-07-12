@@ -13,11 +13,7 @@ import { AgentEventStore } from '../streaming/agent-event.store';
 import type { GeminiChunk } from '../streaming/to-agent-event.operator';
 import { InterruptService } from '../registry/interrupt.service';
 import type { ToolRegistry } from '../registry/tool-registry';
-import type {
-  FunctionDeclaration,
-  ToolDescriptor,
-  ToolMeta,
-} from '../registry/tool-descriptor';
+import type { FunctionDeclaration, ToolDescriptor, ToolMeta } from '../registry/tool-descriptor';
 import { TokenAccountantService } from '../observability/token-accountant.service';
 import { BudgetService } from '../observability/budget.service';
 import { AgentRegistry } from '../agents/agent-registry.service';
@@ -40,11 +36,7 @@ function thoughtChunk(text: string): GeminiChunk {
   };
 }
 
-function toolChunk(
-  name: string,
-  args: Record<string, unknown>,
-  signature?: string,
-): GeminiChunk {
+function toolChunk(name: string, args: Record<string, unknown>, signature?: string): GeminiChunk {
   return {
     candidates: [
       {
@@ -88,10 +80,9 @@ interface ToolDef {
 
 // Minimal in-memory tool registry. Avoids dragging the eager manifests + their
 // lazy-loaded descriptors into agent-loop tests.
-function makeRegistry(tools: readonly ToolDef[]): Pick<
-  ToolRegistry,
-  'get' | 'execute' | 'loadImpl' | 'declarations'
-> {
+function makeRegistry(
+  tools: readonly ToolDef[],
+): Pick<ToolRegistry, 'get' | 'execute' | 'loadImpl' | 'declarations'> {
   const byName = new Map<string, ToolDef>();
   for (const t of tools) byName.set(t.meta.name, t);
 
@@ -176,10 +167,7 @@ function makeHarness(opts: {
   return { deps, streamChunks, store, interrupts, tokens, budget, agents };
 }
 
-async function drain(
-  iter: AsyncIterable<AgentEvent>,
-  signal?: AbortSignal,
-): Promise<AgentEvent[]> {
+async function drain(iter: AsyncIterable<AgentEvent>, signal?: AbortSignal): Promise<AgentEvent[]> {
   const events: AgentEvent[] = [];
   for await (const e of iter) {
     if (signal?.aborted) break;
@@ -276,9 +264,7 @@ describe('runAgentTurn — happy path (text only)', () => {
       responses: [[textChunk('No usage reported'), finishChunk('STOP')]],
     });
 
-    await drain(
-      runAgentTurn('Prompt', 't1', NOOP_OPTIONS, new AbortController().signal, h.deps),
-    );
+    await drain(runAgentTurn('Prompt', 't1', NOOP_OPTIONS, new AbortController().signal, h.deps));
 
     const turn = h.tokens.currentTurn();
     expect(turn.rounds).toHaveLength(1);
@@ -291,9 +277,7 @@ describe('runAgentTurn — happy path (text only)', () => {
       responses: [[textChunk('text'), finishChunk('STOP', { totalTokenCount: 42 })]],
     });
 
-    await drain(
-      runAgentTurn('Prompt', 't1', NOOP_OPTIONS, new AbortController().signal, h.deps),
-    );
+    await drain(runAgentTurn('Prompt', 't1', NOOP_OPTIONS, new AbortController().signal, h.deps));
 
     const turn = h.tokens.currentTurn();
     expect(turn.rounds[0].usageAvailable).toBe(true);
@@ -315,9 +299,7 @@ describe('runAgentTurn — happy path (text only)', () => {
       ],
     });
 
-    await drain(
-      runAgentTurn('Prompt', 't1', NOOP_OPTIONS, new AbortController().signal, h.deps),
-    );
+    await drain(runAgentTurn('Prompt', 't1', NOOP_OPTIONS, new AbortController().signal, h.deps));
 
     const turn = h.tokens.currentTurn();
     expect(turn.rounds).toHaveLength(1);
@@ -351,13 +333,7 @@ describe('runAgentTurn — tool execution', () => {
     });
 
     const events = await drain(
-      runAgentTurn(
-        'Find a flight',
-        't1',
-        NOOP_OPTIONS,
-        new AbortController().signal,
-        h.deps,
-      ),
+      runAgentTurn('Find a flight', 't1', NOOP_OPTIONS, new AbortController().signal, h.deps),
     );
 
     expect(execute).toHaveBeenCalledOnce();
@@ -422,13 +398,7 @@ describe('runAgentTurn — tool execution', () => {
     });
 
     const events = await drain(
-      runAgentTurn(
-        'Find a flight',
-        't1',
-        NOOP_OPTIONS,
-        new AbortController().signal,
-        h.deps,
-      ),
+      runAgentTurn('Find a flight', 't1', NOOP_OPTIONS, new AbortController().signal, h.deps),
     );
 
     const roundCompletes = events.filter((e) => e.type === 'round_complete');
@@ -466,13 +436,7 @@ describe('runAgentTurn — interrupts', () => {
     });
 
     const eventsPromise = drain(
-      runAgentTurn(
-        'Book it',
-        't1',
-        NOOP_OPTIONS,
-        new AbortController().signal,
-        h.deps,
-      ),
+      runAgentTurn('Book it', 't1', NOOP_OPTIONS, new AbortController().signal, h.deps),
     );
 
     // Resolve the interrupt asynchronously so the loop can progress.
@@ -520,13 +484,7 @@ describe('runAgentTurn — budget guard', () => {
     h.budget.update({ maxRounds: 1 });
 
     const events = await drain(
-      runAgentTurn(
-        'Find',
-        't1',
-        NOOP_OPTIONS,
-        new AbortController().signal,
-        h.deps,
-      ),
+      runAgentTurn('Find', 't1', NOOP_OPTIONS, new AbortController().signal, h.deps),
     );
 
     const turnComplete = events.at(-1) as Extract<AgentEvent, { type: 'turn_complete' }>;
@@ -549,23 +507,12 @@ describe('runAgentTurn — budget guard', () => {
     ];
     const h = makeHarness({
       tools,
-      responses: [
-        [
-          toolChunk('searchFlights', {}),
-          finishChunk('STOP', { totalTokenCount: 9999 }),
-        ],
-      ],
+      responses: [[toolChunk('searchFlights', {}), finishChunk('STOP', { totalTokenCount: 9999 })]],
     });
     h.budget.update({ maxTokens: 100 });
 
     const events = await drain(
-      runAgentTurn(
-        'Find',
-        't1',
-        NOOP_OPTIONS,
-        new AbortController().signal,
-        h.deps,
-      ),
+      runAgentTurn('Find', 't1', NOOP_OPTIONS, new AbortController().signal, h.deps),
     );
 
     const turnComplete = events.at(-1) as Extract<AgentEvent, { type: 'turn_complete' }>;
@@ -631,13 +578,7 @@ describe('runAgentTurn — max rounds termination', () => {
     });
 
     const events = await drain(
-      runAgentTurn(
-        'Spin',
-        't1',
-        NOOP_OPTIONS,
-        new AbortController().signal,
-        h.deps,
-      ),
+      runAgentTurn('Spin', 't1', NOOP_OPTIONS, new AbortController().signal, h.deps),
     );
 
     const turnComplete = events.at(-1) as Extract<AgentEvent, { type: 'turn_complete' }>;
@@ -677,13 +618,7 @@ describe('runAgentTurn — handoff', () => {
     });
 
     const events = await drain(
-      runAgentTurn(
-        'Find activities',
-        't1',
-        NOOP_OPTIONS,
-        new AbortController().signal,
-        h.deps,
-      ),
+      runAgentTurn('Find activities', 't1', NOOP_OPTIONS, new AbortController().signal, h.deps),
     );
 
     const handoff = events.find((e) => e.type === 'agent_handoff') as
@@ -741,9 +676,7 @@ describe('runAgentTurn — abort', () => {
             // Chunk that aborts the signal as part of consuming it.
             get candidates() {
               controller.abort();
-              return [
-                { content: { role: 'model' as const, parts: [{ text: 'partial' }] } },
-              ];
+              return [{ content: { role: 'model' as const, parts: [{ text: 'partial' }] } }];
             },
           } as GeminiChunk,
           finishChunk('STOP'),
@@ -793,6 +726,44 @@ describe('runAgentTurn — abort', () => {
     const suspended = gen.next();
     controller.abort();
     await expect(suspended).rejects.toThrow(/Abort/);
+    expect(returnSpy).toHaveBeenCalled();
+  });
+});
+
+describe('runAgentTurn — stall timeout', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('rejects with a typed, retryable timeout error and tears down a stalled stream', async () => {
+    const returnSpy = vi.fn(
+      async (): Promise<IteratorResult<GeminiChunk>> => ({ value: undefined, done: true }),
+    );
+    // A stream whose first `next()` never settles — a silently-dropped
+    // connection that would otherwise hang the turn forever.
+    const stalledStream: AsyncIterable<GeminiChunk> = {
+      [Symbol.asyncIterator]() {
+        return {
+          next: () => new Promise<IteratorResult<GeminiChunk>>(() => undefined),
+          return: returnSpy,
+        } as AsyncIterator<GeminiChunk>;
+      },
+    };
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    const deps: AgentLoopDeps = {
+      streamChunks: vi.fn(async () => stalledStream),
+      store: TestBed.inject(AgentEventStore),
+      registry: makeRegistry([]),
+      interrupts: TestBed.inject(InterruptService),
+      tokenAccountant: TestBed.inject(TokenAccountantService),
+      budget: TestBed.inject(BudgetService),
+      agents: TestBed.inject(AgentRegistry),
+      timeouts: { firstChunkMs: 20, idleMs: 20 },
+    };
+
+    await expect(
+      drain(runAgentTurn('Hi', 't1', NOOP_OPTIONS, new AbortController().signal, deps)),
+    ).rejects.toMatchObject({ name: 'NetworkError', code: 'stream_timeout' });
     expect(returnSpy).toHaveBeenCalled();
   });
 });
@@ -935,9 +906,7 @@ describe('runAgentTurn — agent-aware declarations', () => {
       responses: [[textChunk('hi'), finishChunk('STOP')]],
     });
 
-    await drain(
-      runAgentTurn('Hi', 't1', NOOP_OPTIONS, new AbortController().signal, h.deps),
-    );
+    await drain(runAgentTurn('Hi', 't1', NOOP_OPTIONS, new AbortController().signal, h.deps));
 
     expect(h.streamChunks).toHaveBeenCalledOnce();
     const req = h.streamChunks.mock.calls[0][0] as StreamRoundRequest;
@@ -976,9 +945,7 @@ describe('runAgentTurn — agent-aware declarations', () => {
       responses: [[textChunk('hi'), finishChunk('STOP')]],
     });
 
-    await drain(
-      runAgentTurn('Hi', 't1', NOOP_OPTIONS, new AbortController().signal, h.deps),
-    );
+    await drain(runAgentTurn('Hi', 't1', NOOP_OPTIONS, new AbortController().signal, h.deps));
 
     const req = h.streamChunks.mock.calls[0][0] as StreamRoundRequest;
     const passed = req.config.tools?.[0].functionDeclarations as readonly { name: string }[];
@@ -1068,7 +1035,9 @@ describe('runAgentTurn — tool synthesis gating', () => {
       responses,
     });
 
-    await drain(runAgentTurn('Make tools', 't1', NOOP_OPTIONS, new AbortController().signal, h.deps));
+    await drain(
+      runAgentTurn('Make tools', 't1', NOOP_OPTIONS, new AbortController().signal, h.deps),
+    );
 
     // Every round up to the cap offers proposeTool…
     for (let round = 0; round < MAX_TOOL_SYNTHESIS_PER_TURN; round++) {

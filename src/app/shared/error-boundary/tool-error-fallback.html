@@ -1,0 +1,21 @@
+<div class="tool-unknown tool-unknown--failed" role="status" aria-live="polite">
+  <span class="material-symbols-outlined" aria-hidden="true">error</span>
+  <span
+    >Couldn't load the <code>{{ toolName() }}</code> module.</span
+  >
+  <button
+    mat-stroked-button
+    type="button"
+    class="tool-retry"
+    [disabled]="retrying()"
+    (click)="retry.emit()"
+  >
+    @if (retrying()) {
+      <span class="material-symbols-outlined spinning" aria-hidden="true">progress_activity</span>
+      Retrying…
+    } @else {
+      <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
+      Retry load
+    }
+  </button>
+</div>

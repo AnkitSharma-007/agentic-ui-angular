@@ -19,9 +19,9 @@
             <span class="grad">their own UI.</span>
           </h1>
           <p class="hero-sub">
-            Gemini reasons, Atlas renders. Every tool call materialises as an
-            interactive Angular component (flights, hotels, maps, comparisons)
-            in real time, with full human-in-the-loop control.
+            Gemini reasons, Atlas renders. Every tool call materialises as an interactive Angular
+            component (flights, hotels, maps, comparisons) in real time, with full human-in-the-loop
+            control.
           </p>
         </div>
       </section>
@@ -82,7 +82,9 @@
                 <span class="sample-label">{{ s.label }}</span>
                 <span class="sample-text">{{ s.text }}</span>
               </span>
-              <span class="material-symbols-outlined sample-arrow" aria-hidden="true">arrow_outward</span>
+              <span class="material-symbols-outlined sample-arrow" aria-hidden="true"
+                >arrow_outward</span
+              >
             </button>
           }
         </div>
@@ -119,7 +121,9 @@
                 [class.active]="replaySpeed() === s"
                 (click)="setSpeed(s)"
                 [attr.aria-pressed]="replaySpeed() === s"
-              >{{ s }}×</button>
+              >
+                {{ s }}×
+              </button>
             }
           </div>
           @if (isReplaying()) {
@@ -188,7 +192,9 @@
           <strong>Atlas is thinking…</strong>
           <span class="muted">
             chunks {{ stats().chunks }} · parts {{ stats().parts }}
-            @if (stats().signedParts > 0) { · signed {{ stats().signedParts }} }
+            @if (stats().signedParts > 0) {
+              · signed {{ stats().signedParts }}
+            }
           </span>
         </div>
       </div>
@@ -199,38 +205,29 @@
         @for (call of displayedToolCalls(); track call.callId; let i = $index) {
           <div class="tool-slot" [style.--i]="i">
             @if (componentFor(call); as component) {
-              <ng-container
-                *ngComponentOutlet="component; inputs: inputsFor(call)"
-              />
+              <ng-container *ngComponentOutlet="component; inputs: inputsFor(call)" />
             } @else if (registry.hasFailed(call.name)) {
-              <div class="tool-unknown tool-unknown--failed" role="status" aria-live="polite">
-                <span class="material-symbols-outlined" aria-hidden="true">error</span>
-                <span>Couldn't load the <code>{{ call.name }}</code> module.</span>
-                <button
-                  mat-stroked-button
-                  type="button"
-                  class="tool-retry"
-                  [disabled]="retryingTools().has(call.name)"
-                  (click)="retryToolLoad(call.name)"
-                >
-                  @if (retryingTools().has(call.name)) {
-                    <span class="material-symbols-outlined spinning" aria-hidden="true">progress_activity</span>
-                    Retrying…
-                  } @else {
-                    <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
-                    Retry load
-                  }
-                </button>
-              </div>
+              <app-tool-error-fallback
+                [toolName]="call.name"
+                [retrying]="retryingTools().has(call.name)"
+                (retry)="retryToolLoad(call.name)"
+              />
             } @else if (registry.get(call.name)) {
               <div class="tool-loading" role="status" aria-live="polite">
-                <span class="material-symbols-outlined spinning" aria-hidden="true">progress_activity</span>
-                <span>Loading <code>{{ call.name }}</code> module…</span>
+                <span class="material-symbols-outlined spinning" aria-hidden="true"
+                  >progress_activity</span
+                >
+                <span
+                  >Loading <code>{{ call.name }}</code> module…</span
+                >
               </div>
             } @else {
               <div class="tool-unknown">
                 <span class="material-symbols-outlined" aria-hidden="true">help</span>
-                <span>No component registered for <code>{{ call.name }}</code>.</span>
+                <span
+                  >No component registered for <code>{{ call.name }}</code
+                  >.</span
+                >
               </div>
             }
           </div>
@@ -251,12 +248,7 @@
         <span class="material-symbols-outlined" aria-hidden="true">error</span>
         <span class="banner-text">{{ errorMessage() }}</span>
         @if (lastPrompt() && !isStreaming()) {
-          <button
-            type="button"
-            mat-stroked-button
-            class="banner-action"
-            (click)="retryLast()"
-          >
+          <button type="button" mat-stroked-button class="banner-action" (click)="retryLast()">
             <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
             Retry last prompt
           </button>
@@ -301,7 +293,9 @@
             >
               @switch (saveStatus()) {
                 @case ('saving') {
-                  <span class="material-symbols-outlined" aria-hidden="true">progress_activity</span>
+                  <span class="material-symbols-outlined" aria-hidden="true"
+                    >progress_activity</span
+                  >
                   Saving…
                 }
                 @case ('saved') {
