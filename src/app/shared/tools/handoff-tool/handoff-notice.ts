@@ -14,10 +14,7 @@ import type { ToolCallStatus } from '../../../core/streaming/agent-event.store';
 export class HandoffNoticeComponent {
   private readonly agents = inject(AgentRegistry);
 
-  // Tool-render contract: every tool component accepts the same inputs blob
-  // from `inputsFor()` in HomeComponent so NgComponentOutlet can wire them
-  // uniformly. Declare the full shape even if the template only reads args /
-  // result / status — dropping the unused ones makes setInput() throw.
+  // Uniform tool-render inputs for NgComponentOutlet — omitting any key makes setInput() throw.
   readonly callId = input<string>('');
   readonly args = input<Record<string, unknown>>({});
   readonly result = input<Record<string, unknown> | null>(null);

@@ -1,8 +1,6 @@
 import { InjectionToken, Service, isDevMode } from '@angular/core';
 
-// A single, already-redacted log record. Sinks receive these verbatim — all
-// scrubbing happens upstream in `LoggerService`, so a sink can serialize an
-// entry safely without re-checking for secrets.
+// Pre-redacted log record; sinks serialize safely without re-scrubbing (redaction happens in LoggerService).
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 export interface LogEntry {
@@ -15,15 +13,12 @@ export interface LogEntry {
   readonly error?: { readonly name?: string; readonly message?: string; readonly stack?: string };
 }
 
-// A destination for log entries. Implementations must never throw and never
-// perform their own redaction (entries arrive pre-redacted).
+// Log destination; must never throw (entries arrive pre-redacted).
 export interface LogSink {
   write(entry: LogEntry): void;
 }
 
-// Multi-provider token. `LoggerService` fans each entry out to every registered
-// sink. Wired in `app.config.ts` (Phase 1); absent this, the logger falls back
-// to a lone console sink so it is usable in isolation and in tests.
+// Multi-provider token; LoggerService fans out to all sinks. Falls back to console sink if unwired.
 export const LOG_SINKS = new InjectionToken<readonly LogSink[]>('atlas.log-sinks');
 
 const LEVEL_RANK: Record<LogLevel, number> = { debug: 10, info: 20, warn: 30, error: 40 };
@@ -73,10 +68,7 @@ function buildDetail(entry: LogEntry): Record<string, unknown> | undefined {
 
 export const RING_BUFFER_CAPACITY = 200;
 
-// Keeps the most recent N entries in memory so a "Copy diagnostics" affordance
-// (Phase: observability drawer) can export a redacted trail without any remote
-// transport. A root singleton so the buffer is shared app-wide; also registered
-// into `LOG_SINKS` via `useExisting`.
+// In-memory ring buffer for diagnostics export; root singleton, registered via useExisting in LOG_SINKS.
 @Service()
 export class RingBufferLogSink implements LogSink {
   private buffer: LogEntry[] = [];

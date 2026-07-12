@@ -6,8 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToolsComponent } from './tools';
 import { CustomToolsService } from '../../core/custom-tools/custom-tools.service';
 
-// `templatePreview` is rAF-coalesced. We flush Angular's effect queue first
-// (so the component schedules its rAF) and then wait a frame for the commit.
+// templatePreview is rAF-coalesced — flush the effect queue, then wait one frame.
 async function flushPreviewFrame(fixture: ComponentFixture<unknown>): Promise<void> {
   await fixture.whenStable();
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));

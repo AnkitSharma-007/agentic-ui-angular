@@ -16,17 +16,13 @@ import { StorageError } from '../errors/app-error';
 
 export type KeyStorage = 'session' | 'encrypted-local';
 
-// v2 session tier: only the AES-GCM envelope (iv + ciphertext) lives here; the
-// non-extractable KEK lives in IndexedDB. `LEGACY_SESSION_KEY` is the pre-v2
-// plaintext slot, read once on restore so existing users migrate seamlessly and
-// used as a best-effort fallback when WebCrypto/IndexedDB is unavailable.
+// v2 session tier: AES-GCM envelope in sessionStorage; non-extractable KEK in IndexedDB.
+// LEGACY_SESSION_KEY is the pre-v2 plaintext slot, migrated on restore and used as a WebCrypto/IDB fallback.
 const SESSION_ENVELOPE_KEY = 'agentic-ui.api-key.session.v2';
 const LEGACY_SESSION_KEY = 'agentic-ui.api-key.session';
 const LOCAL_STORAGE_KEY = 'agentic-ui.api-key.encrypted';
 
-// BYOK key with two storage tiers: session (encrypted with a non-extractable
-// per-session KEK, no passphrase) or AES-GCM encrypted in localStorage (requires
-// a passphrase to unlock on subsequent loads).
+// BYOK: session tier (per-session KEK, no passphrase) or localStorage AES-GCM (passphrase-unlocked).
 @Service()
 export class ApiKeyService {
   private readonly logger = inject(LoggerService);
@@ -39,17 +35,12 @@ export class ApiKeyService {
 
   readonly hasLockedBlob = signal<boolean>(this.readLockedBlob() !== null);
 
-  // True when the session key is held in memory but could NOT be persisted to
-  // sessionStorage (quota, private browsing, storage disabled). The key still
-  // works for this tab, but will NOT survive a reload — surfaced so the UI can
-  // warn instead of silently losing it (L3).
+  // True when the in-memory session key could not be persisted — warn instead of silently losing it on reload.
   private readonly _sessionPersistenceFailed = signal(false);
   readonly sessionPersistenceFailed = this._sessionPersistenceFailed.asReadonly();
 
-  // Rehydrate the session key from storage. Async because the KEK lives in
-  // IndexedDB and decryption is async — an APP_INITIALIZER awaits this so the
-  // first render already knows whether a key is present (no onboarding flash).
-  // Always resolves; a corrupt/undecryptable envelope is cleared, not thrown.
+  // Rehydrate session key from storage; APP_INITIALIZER awaits this to avoid an onboarding flash.
+  // Always resolves — corrupt envelopes are cleared, not thrown.
   async restore(): Promise<void> {
     try {
       const envelope = this.readSessionEnvelope();
@@ -61,8 +52,7 @@ export class ApiKeyService {
           this._storage.set('session');
           return;
         }
-        // Envelope without a usable KEK (or the reverse) can never decrypt —
-        // drop the orphaned half rather than leave a dead key around.
+        // Orphaned envelope or KEK half — drop rather than leave a dead key.
         await this.clearSessionPersistence();
         return;
       }
@@ -70,8 +60,7 @@ export class ApiKeyService {
       const legacy = this.readLegacyPlaintext();
       if (legacy) await this.setForSession(legacy);
     } catch (err) {
-      // Storage unavailable / unexpected shape — start with no session key. Not
-      // user-facing (onboarding will show), but logged for diagnostics.
+      // Storage unavailable — start with no key; logged for diagnostics.
       this.logger.debug('Could not restore a session API key.', {
         category: 'storage',
         error: err,
@@ -130,9 +119,7 @@ export class ApiKeyService {
 
   static readonly DecryptionFailedError = DecryptionFailedError;
 
-  // Encrypt the key under a fresh non-extractable KEK and persist both halves.
-  // Falls back to best-effort plaintext only when WebCrypto/IndexedDB is missing
-  // so the key still survives a reload in that environment.
+  // Encrypt under a fresh non-extractable KEK; fall back to plaintext only when WebCrypto/IndexedDB is missing.
   private async persistSession(key: string): Promise<void> {
     try {
       const kek = await generateSessionKek();
@@ -144,8 +131,7 @@ export class ApiKeyService {
       safeWrite(() => sessionStorage.removeItem(LEGACY_SESSION_KEY));
       this.setSessionPersistenceFailed(!wrote);
     } catch (err) {
-      // WebCrypto/IndexedDB unavailable — fall back to best-effort plaintext so
-      // the key still survives a reload where possible.
+      // WebCrypto/IndexedDB unavailable — plaintext fallback so the key survives reload where possible.
       this.logger.debug('Session key encryption unavailable; using plaintext fallback.', {
         category: 'storage',
         error: err,
@@ -198,8 +184,7 @@ export class ApiKeyService {
       const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (!raw) return null;
       const parsed: unknown = JSON.parse(raw);
-      // Reject tampered kdf/iterations here too so a poisoned blob is treated as
-      // "no key" (setup screen) rather than reaching the unlock/derive path (M7).
+      // Reject tampered kdf/iterations so a poisoned blob shows setup, not the unlock path.
       return isSupportedEncryptedPayload(parsed) ? parsed : null;
     } catch {
       return null;
@@ -207,9 +192,7 @@ export class ApiKeyService {
   }
 }
 
-// Best-effort storage write. Returns whether it succeeded so callers can react
-// to a failure (e.g. warn that a session key won't survive a reload) rather
-// than swallowing it silently (L3).
+// Best-effort storage write; returns success so callers can warn on session persistence failure.
 function safeWrite(action: () => void): boolean {
   try {
     action();

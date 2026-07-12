@@ -1,8 +1,7 @@
 import type { Type } from '@angular/core';
 import type { ZodType } from 'zod';
 
-// Mirror of Gemini's OpenAPI-Lite schema, declared locally so callers don't
-// have to import the SDK type.
+// Local OpenAPI-Lite mirror so callers need not import the SDK type.
 export interface FunctionDeclaration {
   readonly name: string;
   readonly description: string;
@@ -31,9 +30,7 @@ export interface ToolMeta {
   readonly declaration: FunctionDeclaration;
   readonly interruptive?: boolean;
   readonly interruptReason?: string;
-  // A singleton tool renders a single, replaceable card: when the agent calls it
-  // more than once in a turn, only the latest (non-failed) instance is shown.
-  // Declared here so the UI doesn't have to hard-code tool names (N4).
+  // Singleton: only latest (non-failed) instance shown when agent calls more than once per turn.
   readonly singleton?: boolean;
 }
 
@@ -41,9 +38,7 @@ export interface ToolManifest<TArgs = unknown, TResult = unknown> extends ToolMe
   load(): Promise<ToolDescriptor<TArgs, TResult>>;
 }
 
-// Documentation-only shape of the inputs supplied to tool components via
-// NgComponentOutlet. Components declare each field as a signal input(), so
-// this interface is not used as `implements` — it just documents the surface.
+// Documents NgComponentOutlet inputs; components use signal input(), not `implements`.
 export interface ToolComponentInputs<TArgs = unknown, TResult = unknown> {
   readonly args: TArgs;
   readonly result: TResult | null;

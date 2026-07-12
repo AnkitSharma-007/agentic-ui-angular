@@ -24,7 +24,6 @@ describe('NotificationHostComponent', () => {
 
     expect(el.querySelector('[aria-live]')).not.toBeNull();
     expect(el.textContent).toContain('Network error reaching Gemini.');
-    // error toasts announce assertively
     expect(el.querySelector('.toast--error')?.getAttribute('role')).toBe('alert');
   });
 

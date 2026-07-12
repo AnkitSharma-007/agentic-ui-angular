@@ -39,8 +39,7 @@ export class ReplayService {
   async save(payload: ReplayPayload): Promise<void> {
     try {
       const db = await this.db();
-      // Full payload + its summary in one transaction so the two stores can't
-      // drift if the write is interrupted.
+      // Payload + summary in one transaction so the stores cannot drift on interrupted writes.
       await idbPutMany(db, [
         { store: STORE_REPLAYS, value: payload },
         { store: STORE_SUMMARIES, value: toSummary(payload) },
@@ -60,12 +59,9 @@ export class ReplayService {
   async refresh(): Promise<readonly ReplaySummary[]> {
     try {
       const db = await this.db();
-      // Read only the lightweight summary rows — the whole point of the v2
-      // store. Skip corrupt/tampered rows so one bad row can't crash the list.
+      // Read lightweight summaries only; skip corrupt rows so one bad entry cannot crash the list.
       let summaries = (await idbGetAll<unknown>(db, STORE_SUMMARIES)).filter(isValidReplaySummary);
-      // One-time migration: profiles upgraded from v1 have full payloads but no
-      // summaries yet. Derive them once and persist so later refreshes stay
-      // cheap. (A genuinely empty library just does one extra empty read.)
+      // One-time v1→v2 migration: derive summaries from full payloads when the summary store is empty.
       if (summaries.length === 0) {
         summaries = await this.backfillSummaries(db);
       }
@@ -76,8 +72,7 @@ export class ReplayService {
       return sorted;
     } catch (err) {
       this.captureError(err, 'refresh');
-      // Flip out of the indeterminate spinner and drop stale rows so the
-      // Library's `refreshFailed` predicate (loaded && empty && error) fires.
+      // Clear stale rows so `refreshFailed` (loaded && empty && error) can fire.
       this._loaded.set(true);
       this._summaries.set([]);
       return [];
@@ -139,10 +134,7 @@ export class ReplayService {
     return derived;
   }
 
-  // N7: after a save, evict the oldest runs (LRU by savedAt) until both the
-  // count and the total encoded size are back under budget. Never evicts the
-  // run that was just saved. Runs saved before `sizeBytes` existed count as 0
-  // toward the byte budget but still count toward the count budget.
+  // Evict oldest runs (LRU by savedAt) until count and byte budgets are met; never evict the just-saved run.
   private async enforceCaps(db: IDBDatabase, justSavedId: string): Promise<void> {
     const current = this._summaries();
     let count = current.length;
@@ -192,9 +184,7 @@ export class ReplayService {
     return this.dbPromise;
   }
 
-  // Every storage failure funnels through here: classify (quota/blocked/other
-  // IDB failures become a StorageError), log once with redaction, and surface a
-  // friendly, actionable message via `lastError` for the Library banner.
+  // Classify storage failures, log once with redaction, and surface actionable copy via `lastError`.
   private captureError(err: unknown, op: string): void {
     const appError = normalizeStorageError(err, { feature: 'replay', op });
     this.logger.error(appError.technicalMessage, {

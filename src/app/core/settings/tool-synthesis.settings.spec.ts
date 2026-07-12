@@ -24,7 +24,6 @@ describe('ToolSynthesisSettings', () => {
     expect(settings.enabled()).toBe(false);
     expect(localStorage.getItem(STORAGE_KEY)).toBe('false');
 
-    // A new injector should read the persisted value, not the ON default.
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({});
     const reloaded = TestBed.inject(ToolSynthesisSettings);

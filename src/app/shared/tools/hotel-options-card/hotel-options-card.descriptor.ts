@@ -59,8 +59,7 @@ const MOCK_HOTELS: ReadonlyArray<{
   },
 ];
 
-// Deliberately slower than searchFlights so the parallel-as-they-settle
-// behaviour is visible to the user — flights land first, hotels second.
+// Slower than searchFlights so parallel-as-they-settle demos show flights landing first.
 async function searchHotelsExecutor(
   args: SearchHotelsArgs,
   ctx: { signal: AbortSignal },

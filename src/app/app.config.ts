@@ -33,9 +33,7 @@ export const appConfig: ApplicationConfig = {
       routes,
       withComponentInputBinding(),
       withViewTransitions(),
-      // Lazy-route chunk loads can fail on a stale deploy or a network blip.
-      // ErrorService classifies these as chunk-load errors and routes them to
-      // the shell boundary with a reload prompt.
+      // Lazy chunk loads can fail on stale deploy/network blip — ErrorService routes to shell boundary with reload.
       withNavigationErrorHandler((event: NavigationError) => {
         inject(ErrorService).handle(event.error, {
           context: { source: 'navigation', url: event.url },
@@ -43,12 +41,9 @@ export const appConfig: ApplicationConfig = {
       }),
     ),
     provideTools(),
-    // Forward-looking seam: registers HttpClient with a normalizing error
-    // interceptor. Inert today (no HttpClient consumer ships — Gemini traffic
-    // goes through the @google/genai SDK), but ready for the first HTTP feature.
+    // Forward-looking: HttpClient + error interceptor wired but inert (no consumer yet — Gemini uses @google/genai SDK).
     provideHttpClient(withInterceptors([errorInterceptor])),
-    // Await session-key rehydration before first render so the app already knows
-    // whether a key is present (the KEK/envelope decrypt is async).
+    // Await session-key rehydration before first render (KEK/envelope decrypt is async).
     provideAppInitializer(() => inject(ApiKeyService).restore()),
     // Global error backstop + logging destinations.
     { provide: ErrorHandler, useClass: GlobalErrorHandler },

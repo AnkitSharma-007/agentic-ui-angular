@@ -14,7 +14,7 @@ import { NotificationService } from '../../shared/notifications/notification.ser
 import type { AgentEvent } from '../../core/streaming/agent-event';
 import type { InlineAttachment } from '../../core/media/attachment.types';
 
-// Narrow view over the component's protected surface used by these tests.
+// Protected-surface view for these tests.
 type HomeAccess = {
   prompt: { set: (v: string) => void };
   attachments: (() => readonly InlineAttachment[]) & {
@@ -124,9 +124,8 @@ describe('HomeComponent.send()', () => {
     instance.send();
     stream.error(new Error('Failed to fetch'));
 
-    // Terminal inline banner still records the failure…
+    // Transient failure: inline banner + one-tap Retry toast.
     expect(store.phase()).toBe('error');
-    // …and a transient failure additionally offers a one-tap Retry toast.
     const toast = notifications.items().find((n) => n.kind === 'error');
     expect(toast?.action?.label).toBe('Retry');
 

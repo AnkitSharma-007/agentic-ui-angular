@@ -25,9 +25,7 @@ export class CustomToolsService {
   readonly unavailable = this._unavailable.asReadonly();
   readonly loaded = this._loaded.asReadonly();
   readonly count = computed(() => this._specs().length);
-  // Exposed so the agent loop can union user-defined tools into every agent's
-  // declarations — without this, custom tools are silently invisible to the
-  // model whenever the active agent's hard-coded allow-list doesn't list them.
+  // Exposed so the agent loop can union custom tools into declarations — otherwise they stay invisible to the model.
   readonly customToolNames = computed<ReadonlySet<string>>(
     () => new Set(this._specs().map((s) => s.name)),
   );
@@ -37,11 +35,7 @@ export class CustomToolsService {
     try {
       const db = await this.db();
       const stored = await idbGetAll<unknown>(db, STORE);
-      // IndexedDB is user-controlled and can be tampered with. Validate every
-      // row, drop duplicates by name, and never `upsert` over a name that is
-      // already registered — that would let a poisoned row shadow a built-in
-      // (e.g. disable the human-approval gate on `proposeTool`). Cap the total
-      // so a bloated store can't register unbounded tools.
+      // Validate every row; never shadow a built-in; cap total so a poisoned store cannot register unbounded tools.
       const sorted = [...stored].filter(isValidCustomToolSpec).sort(byCreatedDesc);
       const kept: CustomToolSpec[] = [];
       const seen = new Set<string>();
@@ -55,9 +49,7 @@ export class CustomToolsService {
       }
       this._specs.set(kept);
     } catch (err) {
-      // Persistence is a graceful-degradation feature: custom tools still work
-      // for the session, so we flag `unavailable` (the UI warns) and log rather
-      // than surface a blocking error.
+      // Persistence is graceful-degradation: flag `unavailable` and log rather than block the session.
       this._unavailable.set(true);
       const appError = normalizeStorageError(err, { feature: 'custom-tools', op: 'load' });
       this.logger.warn(appError.technicalMessage, {
@@ -79,17 +71,12 @@ export class CustomToolsService {
     this.registry.upsert(this.buildManifest(spec));
   }
 
-  // Turn an id-less draft (e.g. one the agent proposed) into a full spec by
-  // stamping a fresh id and timestamps.
   finalizeDraft(draft: Omit<CustomToolSpec, 'id' | 'createdAt' | 'updatedAt'>): CustomToolSpec {
     const now = Date.now();
     return { ...draft, id: randomId(), createdAt: now, updatedAt: now };
   }
 
-  // Register a tool for this session only — hot-registers into the registry and
-  // updates `specs`/`customToolNames`, but skips IndexedDB. Used as a graceful
-  // fallback when persistence is unavailable so agent tool synthesis still works
-  // in the demo.
+  // Session-only registration when persistence is unavailable — skips IndexedDB.
   registerEphemeral(spec: CustomToolSpec): void {
     this._specs.update((list) =>
       [spec, ...list.filter((s) => s.id !== spec.id)].sort(byCreatedDesc),
@@ -97,13 +84,9 @@ export class CustomToolsService {
     this.registry.upsert(this.buildManifest(spec));
   }
 
-  // Register a spec into the tool registry only — no `specs` signal update, no
-  // IndexedDB. Used when rehydrating a saved replay so an embedded synthesized
-  // tool's card can resolve its descriptor, without polluting the user's tool
-  // library. Skips names already registered so a live tool always wins.
+  // Registry-only replay rehydration — no `specs` signal or IndexedDB; live tools always win.
   ensureRegisteredForReplay(spec: CustomToolSpec): void {
-    // Embedded replay specs are untrusted (another device / an edited export).
-    // Reject anything that fails the contract and never shadow a live tool.
+    // Untrusted embedded specs: validate and never shadow an already-registered tool.
     if (!isValidCustomToolSpec(spec)) return;
     if (this.registry.get(spec.name)) return;
     this.registry.upsert(this.buildManifest(spec));

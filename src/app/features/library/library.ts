@@ -46,7 +46,6 @@ export class LibraryComponent implements OnInit {
       !this.unavailable() &&
       !this.refreshFailed(),
   );
-  // Surfaces a delete/clear failure when no broader error banner applies.
   protected readonly operationError = computed(
     () =>
       this.lastError() !== null &&
@@ -71,8 +70,7 @@ export class LibraryComponent implements OnInit {
       this.confirmingDelete.set(summary.id);
       return;
     }
-    // The service writes `lastError` and rethrows; swallow so the confirm
-    // flag still resets. The banner picks up `lastError` via `operationError`.
+    // Swallow rethrows so the confirm flag still resets; lastError surfaces via operationError.
     try {
       await this.replays.delete(summary.id);
     } catch {
@@ -133,8 +131,7 @@ export class LibraryComponent implements OnInit {
     return `${(kb / 1024).toFixed(1)} MB`;
   }
 
-  // A run past the save-time soft cap is flagged so users know it may load
-  // slowly before they hit Replay (L10).
+  // Flag runs past the soft save cap so users know replay may load slowly.
   protected isLargeReplay(bytes: number | undefined): boolean {
     return bytes !== undefined && bytes > REPLAY_WARN_BYTES;
   }

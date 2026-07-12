@@ -14,9 +14,7 @@ const ICON_BY_KIND: Record<NotificationKind, string> = {
   error: 'error',
 };
 
-// Renders the live toast stack. Kept dead-simple (no logic that can throw) since
-// it can surface errors raised by the global handler — a throwing toast would
-// loop the error pipeline.
+// Dead-simple toast host — must not throw when surfacing global-handler errors.
 @Component({
   selector: 'app-notification-host',
   imports: [MatButtonModule, MatIconModule],

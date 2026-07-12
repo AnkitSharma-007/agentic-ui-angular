@@ -1,7 +1,4 @@
-// Thin wrapper over the Web Speech API (`SpeechRecognition` /
-// `webkitSpeechRecognition`). Speech-to-text is handled by the browser's own
-// provider — no audio flows through this app and it costs zero model tokens.
-// Unsupported browsers are detected up front so the mic button can be hidden.
+// Web Speech API wrapper — browser handles STT; no audio or model tokens through this app.
 
 export interface SpeechSessionHandlers {
   /** Cumulative transcript for the session (finalized text + latest interim). */
@@ -51,9 +48,7 @@ export function isSpeechRecognitionSupported(): boolean {
   return getRecognitionCtor() !== null;
 }
 
-// Pure transcript reducer, extracted so the (untestable in jsdom) recognition
-// object stays thin. Accumulates finalized segments and appends the current
-// interim segment for a live-updating preview.
+// Pure transcript reducer — keeps the (jsdom-untestable) recognition object thin.
 export function readTranscript(
   event: SpeechRecognitionEventLike,
   previousFinal: string,

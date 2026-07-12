@@ -9,9 +9,7 @@ import { BudgetService } from '../observability/budget.service';
 import type { AgentEvent } from '../streaming/agent-event';
 import type { GeminiChunk } from '../streaming/to-agent-event.operator';
 
-// Mock the dynamically-imported SDK so the whole streaming pipeline runs
-// without touching the network. `vi.hoisted` lets the hoisted `vi.mock`
-// factory share the spy/handles defined here.
+// Mock dynamic SDK import; vi.hoisted shares spies with the hoisted vi.mock factory.
 const { generateContentStream, sdkConstructorCalls } = vi.hoisted(() => ({
   generateContentStream: vi.fn(),
   sdkConstructorCalls: [] as Array<{ apiKey: string }>,
@@ -139,7 +137,7 @@ describe('GeminiService', () => {
 
       await collect(gemini.streamAgentTurn('hi', 'turn-1'));
 
-      // Unknown/5xx is not classified as retryable: exactly one attempt.
+      // Unknown/5xx is not retryable — exactly one attempt.
       expect(generateContentStream).toHaveBeenCalledTimes(1);
     });
 
@@ -151,7 +149,6 @@ describe('GeminiService', () => {
         generateContentStream.mockRejectedValue(new Error('Failed to fetch'));
 
         const resultPromise = collect(gemini.streamAgentTurn('hi', 'turn-1'));
-        // Drive both backoff sleeps to completion.
         await vi.advanceTimersByTimeAsync(20_000);
         const { error, completed } = await resultPromise;
 

@@ -451,9 +451,7 @@
 }
 
 @media (max-width: 640px) {
-  // Bottom-right collides with the chat composer's send/cancel button on phones
-  // (H10), so dock the meter just below the sticky 60px header instead. The
-  // panel then expands downward and stays scrollable if it outgrows the screen.
+  // Bottom-right collides with the composer on phones — dock below the sticky header instead.
   :host {
     top: calc(60px + env(safe-area-inset-top, 0px) + 0.5rem);
     right: max(0.75rem, env(safe-area-inset-right, 0px));

@@ -8,11 +8,7 @@ const SALT_BYTES = 16;
 const IV_BYTES = 12;
 const KEY_BITS = 256;
 
-// Sane bounds for the PBKDF2 iteration count read back from persisted (and thus
-// user-tamperable) storage. A value below the floor weakens the KDF; a value far
-// above the ceiling would freeze the UI thread on unlock (`deriveKey` is
-// synchronous work). Anything outside this window is treated as a corrupt/
-// unsupported blob rather than executed. (M7)
+// Bounds for tamperable PBKDF2 iteration counts: below floor weakens KDF; far above freezes UI on unlock.
 export const MIN_PBKDF2_ITERATIONS = 100_000;
 export const MAX_PBKDF2_ITERATIONS = 1_000_000;
 
@@ -55,10 +51,7 @@ export class DecryptionFailedError extends AuthError {
   }
 }
 
-// Validate the shape *and* the security-relevant fields of a persisted envelope
-// before we ever feed it to `deriveKey`. Rejects tampered `kdf`/`iterations`
-// (M7) so a poisoned localStorage row can neither weaken the KDF nor hang the
-// UI thread with an absurd iteration count.
+// Validate envelope shape and security fields before `deriveKey`; reject tampered kdf/iterations.
 export function isSupportedEncryptedPayload(value: unknown): value is EncryptedPayloadV1 {
   if (!value || typeof value !== 'object') return false;
   const p = value as Partial<EncryptedPayloadV1>;
@@ -160,8 +153,7 @@ export async function decryptString(
   passphrase: string,
 ): Promise<string> {
   const subtle = assertSubtle();
-  // Guard before any key derivation so a tampered iteration count can't stall
-  // the UI thread and an unsupported kdf can't slip through (M7).
+  // Guard before key derivation so tampered iterations or unsupported kdf cannot slip through.
   if (!isSupportedEncryptedPayload(payload)) {
     throw new DecryptionFailedError();
   }
@@ -181,15 +173,7 @@ export async function decryptString(
   }
 }
 
-// --- Session-tier encryption -------------------------------------------------
-//
-// The "session" storage tier (no passphrase) encrypts the key with a random,
-// **non-extractable** AES-GCM key (the KEK). The KEK lives as a CryptoKey handle
-// in IndexedDB (see session-key-store.ts) — its raw bytes can never be read back
-// out — and only this envelope (iv + ciphertext) is written to sessionStorage.
-// Net effect: the plaintext key is never at rest, and an XSS payload can't
-// exfiltrate the KEK; it would have to actively call decrypt() to recover the
-// key. It still survives a reload (both halves persist within the session).
+// Session tier: non-extractable KEK in IndexedDB + ciphertext in sessionStorage — XSS cannot exfiltrate raw key bytes.
 
 export interface SessionKeyEnvelope {
   readonly version: 1;

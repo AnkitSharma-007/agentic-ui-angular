@@ -1,12 +1,7 @@
 import { ErrorHandler, Injectable, inject } from '@angular/core';
 import { ErrorService } from './error.service';
 
-// The application's global backstop. Angular routes every otherwise-uncaught
-// error here (including window `error` / `unhandledrejection` events via
-// `provideBrowserGlobalErrorListeners`). We hand each one to ErrorService, which
-// normalizes, logs, and routes presentation (transient toast, or the persistent
-// shell boundary for app-breaking failures). Cancellations and errors already
-// surfaced by a closer layer are skipped inside ErrorService.
+// Global backstop for uncaught errors (via provideBrowserGlobalErrorListeners). Hands to ErrorService; cancellations and already-surfaced errors skipped inside.
 @Injectable()
 export class GlobalErrorHandler implements ErrorHandler {
   private readonly errors = inject(ErrorService);
@@ -16,9 +11,7 @@ export class GlobalErrorHandler implements ErrorHandler {
   }
 }
 
-// Angular and the browser wrap the original throwable in a few well-known ways
-// (zone rejections, re-thrown promise reasons). Peel those back so the
-// normalizer classifies the real error.
+// Peel Angular/browser wrappers (zone rejections, ngOriginalError) so normalizer sees the real error.
 function unwrap(error: unknown): unknown {
   if (error && typeof error === 'object') {
     const wrapped = error as { rejection?: unknown; ngOriginalError?: unknown };

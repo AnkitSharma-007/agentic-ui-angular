@@ -1,9 +1,6 @@
 import { Service, signal } from '@angular/core';
 
-// Transient, non-blocking feedback (toasts). Signal-driven so the host renders
-// reactively under zoneless change detection. Chosen over MatSnackBar to match
-// the app's inline-banner aesthetic and to keep full control over a11y, dedupe,
-// and actions; MatSnackBar would be the lower-effort alternative.
+// Signal-driven toasts (zoneless); custom over MatSnackBar for a11y, dedupe, and inline-banner styling.
 export type NotificationKind = 'info' | 'success' | 'warn' | 'error';
 
 export interface NotificationAction {
@@ -21,10 +18,9 @@ export interface AppNotification {
 export interface NotifyOptions {
   readonly kind?: NotificationKind;
   readonly action?: NotificationAction;
-  // Auto-dismiss delay in ms. 0 keeps the toast until dismissed.
+  // Auto-dismiss delay in ms; 0 keeps the toast until dismissed.
   readonly durationMs?: number;
-  // Identical keys collapse into a single visible toast (prevents error spam
-  // when the same failure repeats). Defaults to `kind:message`.
+  // Identical keys collapse to one toast (defaults to `kind:message`).
   readonly dedupeKey?: string;
 }
 
@@ -52,7 +48,7 @@ export class NotificationService {
     const duration = options.durationMs ?? DEFAULT_DURATION_MS[kind];
     const dedupeKey = options.dedupeKey ?? `${kind}:${message}`;
 
-    // Collapse a duplicate that's still on screen; just refresh its timer.
+    // Refresh timer for an on-screen duplicate.
     const existingId = this.idByKey.get(dedupeKey);
     if (existingId !== undefined) {
       if (duration > 0) this.startTimer(existingId, duration);
@@ -104,8 +100,7 @@ export class NotificationService {
     this._items.set([]);
   }
 
-  // Drop the bookkeeping for a toast without touching the visible list (the
-  // caller updates the signal). Also clears any pending timer.
+  // Clear dedupe bookkeeping without updating the visible list; also clears pending timers.
   private forget(id: number): void {
     this.clearTimer(id);
     const key = this.keyById.get(id);

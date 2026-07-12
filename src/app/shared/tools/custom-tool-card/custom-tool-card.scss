@@ -18,9 +18,7 @@
   }
 }
 
-// `tool-header-row` (global, in styles.scss) gives us the full-width
-// flex/space-between layout that mat-card-header's internal grid would
-// otherwise mis-place. We just add the card-specific dashed divider here.
+// Global `tool-header-row` handles flex layout; card-specific dashed divider only.
 .tool-header-row {
   padding-bottom: 0.75rem;
   border-bottom: 1px dashed color-mix(in srgb, var(--mat-sys-outline-variant) 50%, transparent);
@@ -185,7 +183,7 @@
   gap: 0.5rem;
 }
 
-// Key/value table shared by object responses and each list item's fields.
+// Key/value table for object responses and list-item fields.
 .kv-list {
   list-style: none;
   padding: 0;
@@ -203,8 +201,7 @@
     border-radius: 8px;
   }
 
-  // A row whose value is itself a list/object stacks vertically: key label on
-  // top, nested content below.
+  // Nested list/object values stack vertically under their key label.
   li.kv-block {
     flex-direction: column;
     align-items: stretch;

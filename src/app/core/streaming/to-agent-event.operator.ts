@@ -1,7 +1,6 @@
 import type { AgentEvent } from './agent-event';
 
-// Local re-types of the subset of `GenerateContentResponse` we consume.
-// Keeps the operator decoupled from `@google/genai` and trivially testable.
+// Local GenerateContentResponse subset; keeps operator decoupled from @google/genai and testable.
 
 export interface GeminiPart {
   readonly text?: string;
@@ -72,10 +71,7 @@ export function chunkToEvents(chunk: GeminiChunk, state: StreamState): ChunkResu
   let finishReason: string | null = null;
 
   for (const candidate of chunk.candidates ?? []) {
-    // M4: once a round is finalized (a finishReason arrived in an earlier
-    // chunk), ignore any trailing candidates/parts. Out-of-order or duplicate
-    // tail chunks would otherwise emit a tool_call — or any event — *after*
-    // round_complete, violating timeline and settlement ordering.
+    // After round finalization, ignore trailing candidates/parts — late chunks would emit events after round_complete.
     if (finalized) break;
     for (const part of candidate.content?.parts ?? []) {
       const callId = `${turnId}:${partIndex++}`;
@@ -95,9 +91,7 @@ export function chunkToEvents(chunk: GeminiChunk, state: StreamState): ChunkResu
         }
         case 'tool': {
           const fc = part.functionCall!;
-          // L1: a nameless functionCall can't map to a tool. Emit it with an
-          // empty name so the settlement layer fails it cleanly with a
-          // synthetic error instead of round-tripping through the registry.
+          // Nameless functionCall: emit empty name so settlement fails cleanly instead of round-tripping through registry.
           events.push({
             type: 'tool_call',
             ts,

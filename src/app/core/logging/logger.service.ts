@@ -16,9 +16,7 @@ export interface LogMeta {
   readonly error?: unknown;
 }
 
-// The single logging entry point for the app. Every record is redacted here —
-// once — then fanned out to all registered sinks. Logging is best-effort: a
-// failing sink (or a value that resists serialization) can never crash a caller.
+// Single logging entry point: redact once, fan out to sinks. Best-effort — failing sink never crashes caller.
 @Service()
 export class LoggerService {
   private readonly sinks: readonly LogSink[] =

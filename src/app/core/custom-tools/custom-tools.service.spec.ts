@@ -14,8 +14,7 @@ import {
   type CustomToolSpec,
 } from './custom-tool.types';
 
-// Open the same object store the service uses, so a test can seed poisoned /
-// untrusted rows that bypass `save()`'s (typed) happy path.
+// Seed poisoned/untrusted IDB rows that bypass `save()`'s typed path.
 function openToolsDb(): Promise<IDBDatabase> {
   return openDb('atlas-custom-tools', 1, (db) => {
     if (!db.objectStoreNames.contains('tools')) {
@@ -59,8 +58,7 @@ describe('CustomToolsService', () => {
   });
 
   it('flags unavailable and still finishes loading when persistence is unreachable', async () => {
-    // Poison the DB so idbGetAll throws — the service must degrade gracefully
-    // (session-only tools) rather than swallow the failure or crash load().
+    // Poison the DB so idbGetAll throws — service must degrade to session-only tools.
     type Private = { dbPromise: Promise<IDBDatabase> | null };
     (service as unknown as Private).dbPromise = Promise.resolve({
       transaction: () => {
@@ -99,7 +97,6 @@ describe('CustomToolsService', () => {
     await service.save(makeSpec({ id: 'old', name: 'a', createdAt: 1 }));
     await service.save(makeSpec({ id: 'new', name: 'b', createdAt: 2 }));
 
-    // Reset the service via a fresh injector while keeping the IDB instance.
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({});
     const fresh = TestBed.inject(CustomToolsService);
@@ -182,9 +179,7 @@ describe('CustomToolsService', () => {
     const spec = makeSpec({ id: 'r1', name: 'replayTool' });
     service.ensureRegisteredForReplay(spec);
 
-    // Registry can now resolve the tool so a replayed card renders…
     expect(registry.get('replayTool')).toBeDefined();
-    // …but it never entered the user's saved tool library.
     expect(service.count()).toBe(0);
     expect(service.customToolNames().has('replayTool')).toBe(false);
   });
@@ -197,7 +192,6 @@ describe('CustomToolsService', () => {
       makeSpec({ id: 'embedded', name: 'shared', description: 'stale replay version' }),
     );
 
-    // The live manifest is preserved (same reference), replay copy is ignored.
     expect(registry.get('shared')).toBe(before);
     expect(service.count()).toBe(1);
   });
@@ -239,8 +233,7 @@ describe('CustomToolsService — response template via the loaded descriptor', (
   });
 
   it('substitutes parameters into the response template and parses JSON', () => {
-    // applyResponseTemplate is pure; cover it directly rather than waiting on
-    // the lazy descriptor chunk (which depends on a Material component).
+    // Test applyResponseTemplate directly — avoids the lazy descriptor chunk (Material dependency).
     const result = applyResponseTemplate('{"translated": {{text}}, "lang": {{lang}}}', {
       text: 'hello',
       lang: 'fr',

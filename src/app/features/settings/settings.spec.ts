@@ -83,9 +83,7 @@ describe('SettingsComponent', () => {
   });
 
   it('cancels the pending "saved → idle" timer when the component is destroyed', async () => {
-    // Bootstrap the fixture under real timers first — Angular's zoneless
-    // change detection schedules its own work via setTimeout, and freezing
-    // those before the component is stable deadlocks whenStable().
+    // Bootstrap under real timers first — fake timers before whenStable() deadlocks zoneless CD.
     const fixture = TestBed.createComponent(SettingsComponent);
     await fixture.whenStable();
     const inst = fixture.componentInstance as unknown as SettingsInternals;
@@ -97,8 +95,7 @@ describe('SettingsComponent', () => {
 
       fixture.destroy();
 
-      // After destroy the timer must be cancelled — advancing past 1800ms
-      // should NOT touch the (now destroyed) component's signal.
+      // Destroyed component's timer must not fire after 1800ms.
       vi.advanceTimersByTime(5000);
       expect(inst.budgetSaveStatus()).toBe('saved');
     } finally {
@@ -115,8 +112,7 @@ describe('SettingsComponent', () => {
     try {
       inst.saveBudget();
       vi.advanceTimersByTime(1000);
-      // Second save before the first timer fires — pill should stay "saved"
-      // until 1800ms AFTER the second save (not the first).
+      // Second save resets the 1800ms idle timer from the latest save, not the first.
       inst.saveBudget();
       vi.advanceTimersByTime(1000);
       expect(inst.budgetSaveStatus()).toBe('saved');
@@ -135,8 +131,7 @@ describe('SettingsComponent', () => {
     const fixture = TestBed.createComponent(SettingsComponent);
     await fixture.whenStable();
     const inst = fixture.componentInstance as unknown as SettingsInternals;
-    // -1 and 0 are not valid caps; null models the "couldn't parse" case a
-    // number input yields for junk like "abc".
+    // Zero/negative caps coerce to null (number inputs yield null for junk like "abc").
     inst.budgetModel.set({ maxTokens: -1, maxRounds: 0, maxCost: null });
 
     inst.saveBudget();
@@ -152,7 +147,7 @@ describe('SettingsComponent', () => {
     await fixture.whenStable();
     const el = fixture.nativeElement as HTMLElement;
 
-    // @angular/aria's ngListbox/ngOption apply the ARIA roles + keyboard model.
+    // @angular/aria ngListbox/ngOption supply ARIA roles + keyboard model.
     expect(el.querySelector('[role="listbox"]')).not.toBeNull();
     expect(el.querySelectorAll('[role="option"]')).toHaveLength(3);
   });
@@ -169,7 +164,6 @@ describe('SettingsComponent', () => {
     await fixture.whenStable();
     expect(theme.preference()).toBe('dark');
 
-    // The listbox reflects the new selection via aria-selected.
     const selected = (fixture.nativeElement as HTMLElement).querySelector(
       '[role="option"][aria-selected="true"]',
     );

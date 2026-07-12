@@ -25,7 +25,6 @@ describe('handoffToDescriptor.execute (H2)', () => {
     expect(result).not.toHaveProperty('acknowledged');
     expect(result).toHaveProperty('error');
     expect((result as { error: string }).error).toMatch(/Unknown specialist/i);
-    // Lists the real specialists so the model can self-correct.
     expect((result as { error: string }).error).toMatch(/experienceCurator/);
   });
 });

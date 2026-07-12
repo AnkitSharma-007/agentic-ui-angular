@@ -399,12 +399,12 @@ describe('cancellation (H1)', () => {
     })();
 
     await vi.waitFor(() => expect(captured).toBeDefined());
-    // The child signal is derived, not the parent itself…
+    // Child signal is derived from parent, not the parent itself.
     expect(captured).not.toBe(controller.signal);
     controller.abort();
 
     await expect(iterate).rejects.toThrow(/Abort/);
-    // …and aborting the parent propagates to the batch signal.
+    // Parent abort propagates to batch signal.
     expect(captured?.aborted).toBe(true);
   });
 });

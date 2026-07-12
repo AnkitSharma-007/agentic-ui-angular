@@ -97,12 +97,9 @@ export class ProposeToolCardComponent {
   protected readonly isRejected = computed(() => this.status() === 'rejected');
   protected readonly isError = computed(() => this.status() === 'error');
 
-  // Editable copy of the proposed draft as a Signal Forms model. `linkedSignal`
-  // re-seeds from the incoming args (fixed for a given call) yet stays writable
-  // so the presenter can tweak the definition live before approving.
+  // Writable Signal Forms copy; `linkedSignal` re-seeds from fixed per-call args for live edits before approval.
   protected readonly draftModel = linkedSignal<DraftForm>(() => {
-    // Bound the untrusted, model-authored proposal to safe sizes before it is
-    // ever rendered/edited (M9). Approval is still gated by the form validators.
+    // Clamp untrusted model-authored proposal before render/edit; validators gate approval.
     const clamped = clampToolDraft(this.args());
     return {
       name: clamped.name,
@@ -144,8 +141,6 @@ export class ProposeToolCardComponent {
   protected readonly showRejectNote = signal(false);
   protected readonly rejectionNote = signal('');
 
-  // Kept for the header/running labels and as a stable error accessor the tests
-  // read; both just project the Signal Forms state.
   protected readonly draftName = computed(() => this.draftModel().name);
   protected readonly nameError = computed<string | null>(
     () => this.draft.name().errors()[0]?.message ?? null,
@@ -227,8 +222,7 @@ export class ProposeToolCardComponent {
 
     const spec = this.customTools.finalizeDraft({ ...draft, origin: 'agent' });
     try {
-      // Persist + hot-register. Registration completes before the interrupt
-      // resolves, so the new tool is in the registry when the loop advances.
+      // Register before interrupt resolves so the new tool is callable on the next loop round.
       await this.customTools.save(spec);
     } catch {
       // IndexedDB unavailable — keep synthesis working for this session.

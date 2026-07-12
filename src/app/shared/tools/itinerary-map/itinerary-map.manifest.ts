@@ -6,9 +6,7 @@ import type {
 
 export const RENDER_ITINERARY_META: ToolMeta = {
   name: 'renderItinerary',
-  // The map is a single, replaceable surface — if the agent re-renders the
-  // itinerary, only the latest card should show (N4, previously hard-coded in
-  // home.ts as a `'renderItinerary'` string literal).
+  // Singleton surface — only the latest itinerary card should show on re-render.
   singleton: true,
   description:
     'Render the trip on an interactive map with markers for each waypoint and a line between them.',

@@ -10,8 +10,7 @@ export interface CustomToolSpec {
   readonly description: string;
   readonly parameters: readonly CustomToolParameter[];
   readonly responseTemplate: string;
-  // Provenance. Optional so specs persisted before this field existed still
-  // load; read it through `toolOrigin()` which defaults absent values to 'user'.
+  // Optional provenance for backward compatibility — default via `toolOrigin()`.
   readonly origin?: CustomToolOrigin;
   readonly createdAt: number;
   readonly updatedAt: number;
@@ -33,17 +32,13 @@ export type CustomToolParameterType = CustomToolParameter['type'];
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const IDENTIFIER_MSG = 'Letters, digits, underscores; must start with a letter or underscore.';
 
-// Hard bounds applied when parsing a spec from an untrusted source (IndexedDB
-// or an embedded replay payload). They keep a poisoned/oversized row from
-// hanging the UI on parse or exhausting the tool registry. Generous enough that
-// no legitimately hand-built or agent-proposed tool hits them.
+// Bounds for untrusted specs (IndexedDB or embedded replay) — generous enough for legitimate tools.
 export const MAX_TOOL_NAME = 64;
 export const MAX_TOOL_DESCRIPTION = 1000;
 export const MAX_PARAMETER_DESCRIPTION = 256;
 export const MAX_PARAMETERS = 20;
 export const MAX_RESPONSE_TEMPLATE_BYTES = 8 * 1024;
-// Cap on how many custom tools we rehydrate into the registry on load. Beyond
-// this we keep the newest and drop the rest rather than register unbounded.
+// Cap rehydrated tools on load — keep newest and drop the rest beyond this.
 export const MAX_CUSTOM_TOOLS = 100;
 
 function utf8Bytes(value: string): number {
@@ -70,11 +65,7 @@ const customToolSpecSchema = z.object({
   updatedAt: z.number(),
 });
 
-// The proposal/draft contract (a spec without the id/timestamps the service
-// stamps at registration). Model-authored `proposeTool` args are validated
-// against this at ingestion, so the schema is deliberately as strict as the
-// tool-builder UI: identifier-shaped names, bounded strings, a parameter cap,
-// and a byte-capped template. (M9)
+// Draft contract for `proposeTool` args — as strict as the tool-builder UI (identifiers, bounds, byte-capped template).
 export const customToolDraftSchema = z.object({
   name: z.string().min(1).max(MAX_TOOL_NAME).regex(IDENTIFIER),
   description: z.string().min(1).max(MAX_TOOL_DESCRIPTION),
@@ -87,10 +78,7 @@ export const customToolDraftSchema = z.object({
 
 export type CustomToolDraft = z.infer<typeof customToolDraftSchema>;
 
-// Validate an untrusted value (e.g. a stored IndexedDB row or a spec embedded
-// in a replay) against the spec contract. Returns the value narrowed to
-// `CustomToolSpec` on success, or `null` so callers can skip the bad row. The
-// original object is returned unchanged (not a Zod clone) so no fields are lost.
+// Validate untrusted specs; return the original object narrowed, or `null` to skip bad rows.
 export function parseCustomToolSpec(value: unknown): CustomToolSpec | null {
   return customToolSpecSchema.safeParse(value).success ? (value as CustomToolSpec) : null;
 }
@@ -101,8 +89,7 @@ function asString(value: unknown): string {
 
 function truncateToBytes(value: string, maxBytes: number): string {
   if (utf8Bytes(value) <= maxBytes) return value;
-  // Trim by characters until within the byte budget — cheap and safe for the
-  // rare oversized input; correctness matters more than speed here.
+  // Trim character-by-character until within the byte budget.
   let out = value;
   while (out.length > 0 && utf8Bytes(out) > maxBytes) {
     out = out.slice(0, -1);
@@ -122,10 +109,7 @@ function clampParameter(value: unknown): CustomToolParameter {
   };
 }
 
-// Bound an untrusted, model-authored draft to safe sizes/shape *before* it is
-// rendered in the approval card (M9). This never rejects — it clamps — so the
-// user still sees an editable proposal; the strict `customToolDraftSchema` +
-// the card's own validation gate whether it can actually be approved.
+// Clamp untrusted drafts before the approval card — never rejects, so the user still sees an editable proposal.
 export function clampToolDraft(value: unknown): CustomToolDraft {
   const draft = (value ?? {}) as Record<string, unknown>;
   const rawParams = Array.isArray(draft['parameters']) ? draft['parameters'] : [];
@@ -158,11 +142,7 @@ export function applyResponseTemplate(
   template: string,
   args: Record<string, unknown>,
 ): { ok: true; value: unknown } | { ok: false; error: string } {
-  // Each placeholder is replaced with the JSON representation of its value, so
-  // strings come out already quoted. LLMs (and people) frequently wrap the
-  // placeholder in quotes anyway (`"{{city}}"`), which would otherwise produce
-  // double-quoted, invalid JSON. Handle that quoted form first — stripping the
-  // surrounding quotes — then any bare placeholders.
+  // Handle quoted placeholders (`"{{city}}"`) first to avoid double-quoted invalid JSON.
   const substitute = (name: string): string => {
     const v = args[name];
     return v === undefined ? 'null' : JSON.stringify(v);
@@ -173,9 +153,7 @@ export function applyResponseTemplate(
     .replace(/\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g, (_, name) => substitute(name));
 
   try {
-    // Strip prototype-polluting keys during parse (L13). Harmless today because
-    // the result is only text-interpolated, but this keeps the boundary safe if
-    // the parsed value is ever used structurally.
+    // Drop prototype-polluting keys during parse — safe boundary if the value is ever used structurally.
     return { ok: true, value: JSON.parse(substituted, dropDangerousKeys) };
   } catch (err) {
     return {
@@ -187,8 +165,7 @@ export function applyResponseTemplate(
 
 const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
-// JSON.parse reviver: drop keys that could pollute Object.prototype. Returning
-// `undefined` removes the key from the parsed result.
+// JSON.parse reviver: drop prototype-polluting keys (`undefined` removes the key).
 function dropDangerousKeys(key: string, value: unknown): unknown {
   return DANGEROUS_KEYS.has(key) ? undefined : value;
 }

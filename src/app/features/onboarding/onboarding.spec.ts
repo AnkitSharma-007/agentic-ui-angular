@@ -70,7 +70,6 @@ describe('OnboardingComponent', () => {
     const inst = fixture.componentInstance as unknown as OnboardingInternals;
 
     patch(inst, { key: 'sk-1234' });
-    // A valid key that has not been tested cannot be saved.
     expect(inst.canSave()).toBe(false);
 
     await inst.test();

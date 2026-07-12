@@ -5,8 +5,7 @@ import { MapCanvasComponent } from './map-canvas';
 import type { ToolCallStatus } from '../../../core/streaming/agent-event.store';
 import type { RenderItineraryArgs, RenderItineraryResult } from './itinerary-map.types';
 
-// Uses `@defer (on viewport)` in the template to keep Leaflet out of the
-// initial bundle; the map chunk loads when the card enters the viewport.
+// `@defer (on viewport)` in the template keeps Leaflet out of the initial bundle.
 @Component({
   selector: 'app-itinerary-map',
   imports: [MatCardModule, MatProgressBarModule, MapCanvasComponent],

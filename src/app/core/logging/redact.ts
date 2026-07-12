@@ -1,7 +1,4 @@
-// Redaction for logs and user-facing messages. Atlas is a BYOK app whose whole
-// trust story is "nothing leaves the browser except calls to Gemini", so no
-// diagnostic string may ever carry the API key, a passphrase, or inline media.
-// These helpers are pure and heavily tested against adversarial inputs.
+// Log/message redaction — BYOK trust model: no API key, passphrase, or inline media in any diagnostic string.
 
 export const REDACTED = '[redacted]';
 
@@ -9,23 +6,19 @@ export const REDACTED = '[redacted]';
 const DATA_URL = /data:[^;,\s]+;base64,[A-Za-z0-9+/=]+/gi;
 // Google API keys ("AIza" + ~35 url-safe chars). The Gemini BYOK key shape.
 const GOOGLE_API_KEY = /AIza[0-9A-Za-z_-]{20,}/g;
-// Any long base64-ish run (inline media data, ciphertext, salts). Kept last so
-// the more specific patterns above win first.
+// Long base64-ish runs (inline media, ciphertext, salts); kept last so specific patterns above win.
 const LONG_BASE64 = /[A-Za-z0-9+/]{100,}={0,2}/g;
 
-// Object keys whose *values* are always redacted regardless of content, because
-// their names signal a secret or a media blob.
+// Object keys whose values are always redacted — names signal a secret or media blob.
 const SENSITIVE_KEY =
   /^(api[_-]?key|key|passphrase|password|secret|token|authorization|auth|credential|ciphertext|salt|iv|kek|data|databytes|database64|datab64|dataurl)$/i;
 
-// Bounds so a huge object (e.g. rawHistory with inline media) can't blow up the
-// logger or a remote sink payload.
+// Depth/breadth caps so huge objects (e.g. rawHistory with inline media) can't blow up sink payloads.
 const MAX_DEPTH = 6;
 const MAX_KEYS = 50;
 const MAX_ARRAY = 50;
 const MAX_STRING = 2000;
 
-// Scrub secrets from a free-form string (an error message, stack, or value).
 export function redactString(input: string): string {
   if (!input) return input;
   return input
@@ -34,8 +27,7 @@ export function redactString(input: string): string {
     .replace(LONG_BASE64, REDACTED);
 }
 
-// Deep-clone a structured context value with sensitive keys removed, string
-// values scrubbed, and hard depth/breadth caps applied. Never throws.
+// Deep-clone context with sensitive keys stripped, strings scrubbed, depth/breadth caps. Never throws.
 export function redactContext(value: unknown, depth = 0): unknown {
   if (value == null) return value;
   if (depth > MAX_DEPTH) return '[depth-limited]';
@@ -81,7 +73,6 @@ export interface RedactedError {
   readonly stack?: string;
 }
 
-// Produce a safe, structured representation of an arbitrary thrown value.
 export function redactError(err: unknown): RedactedError | undefined {
   if (err == null) return undefined;
   if (err instanceof Error) {

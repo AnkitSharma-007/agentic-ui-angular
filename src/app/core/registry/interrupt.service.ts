@@ -11,10 +11,7 @@ interface PendingHandle {
   readonly cleanup: () => void;
 }
 
-// A decision buffered because it arrived before the awaiter registered. Keep a
-// hard cap so a stream of genuinely stale dispatches (cancelled turns, replay
-// races) can't grow the map without bound. callIds are unique per turn, so a
-// buffered entry only ever resolves the awaiter it was meant for.
+// Buffer decisions that arrive before awaiter registers; capped to bound stale-dispatch memory (callIds unique per turn).
 const MAX_EARLY_DECISIONS = 64;
 
 @Service()
@@ -32,9 +29,7 @@ export class InterruptService {
   }
 
   pendingDecision(callId: string, signal: AbortSignal): Promise<InterruptDecision> {
-    // M5: the UI can render the approval card (and a fast/auto approver can
-    // dispatch a decision) before settlement registers this awaiter. If a
-    // decision was buffered for this callId, honour it instead of waiting.
+    // Honour buffered decision when UI/auto-approver dispatches before settlement registers.
     const buffered = this.earlyDecisions.get(callId);
     if (buffered) {
       this.earlyDecisions.delete(callId);
@@ -73,12 +68,7 @@ export class InterruptService {
   decide(callId: string, decision: InterruptDecision): void {
     const handle = this.pending.get(callId);
     if (!handle) {
-      // No awaiter yet. This is usually a slightly-early dispatch — the UI
-      // rendered the request before settlement registered `pendingDecision`
-      // (M5) — so buffer it to be honoured on registration rather than dropped.
-      // A genuinely stale dispatch (cancelled turn, replay race, duplicate
-      // click) simply never gets consumed; callIds are unique per turn so it
-      // can't resolve the wrong awaiter.
+      // No awaiter yet — buffer slightly-early UI dispatch; stale dispatches (cancelled turn, replay) never consumed.
       this.bufferEarlyDecision(callId, decision);
       return;
     }
@@ -89,8 +79,7 @@ export class InterruptService {
   }
 
   private bufferEarlyDecision(callId: string, decision: InterruptDecision): void {
-    // Bound the buffer: evict the oldest entry once we exceed the cap so a
-    // flood of stale dispatches can't leak memory.
+    // Evict oldest when cap exceeded — bound memory from stale dispatch flood.
     if (this.earlyDecisions.size >= MAX_EARLY_DECISIONS) {
       const oldest = this.earlyDecisions.keys().next().value;
       if (oldest !== undefined) this.earlyDecisions.delete(oldest);

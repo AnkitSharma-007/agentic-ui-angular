@@ -18,8 +18,7 @@ const searchFlightsArgsSchema = z.object({
 
 const MOCK_AIRLINES = ['IndiGo', 'Vistara', 'Akasa Air', 'Air India Express'] as const;
 
-// Deterministic mock: returns the same 4 flights for the same args so demos
-// stay reproducible. The 800–1200ms delay is intentional skeleton-time.
+// Deterministic mock with intentional 800–1200ms skeleton delay for reproducible demos.
 async function searchFlightsExecutor(
   args: SearchFlightsArgs,
   ctx: { signal: AbortSignal },

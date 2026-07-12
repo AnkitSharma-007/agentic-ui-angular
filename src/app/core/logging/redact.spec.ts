@@ -71,7 +71,6 @@ describe('redactContext', () => {
       cursor.next = {};
       cursor = cursor.next;
     }
-    // Should not throw and should terminate with a marker.
     expect(() => JSON.stringify(redactContext(root))).not.toThrow();
     expect(JSON.stringify(redactContext(root))).toContain('depth-limited');
   });

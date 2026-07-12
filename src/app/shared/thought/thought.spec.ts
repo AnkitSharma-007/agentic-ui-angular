@@ -16,8 +16,6 @@ describe('ThoughtComponent', () => {
   it('renders nothing meaningful when no thought has streamed', async () => {
     const fixture = TestBed.createComponent(ThoughtComponent);
     await fixture.whenStable();
-    // The template hides the panel when there's no content — we just want the
-    // construct to not throw.
     expect(fixture.componentInstance).toBeDefined();
   });
 

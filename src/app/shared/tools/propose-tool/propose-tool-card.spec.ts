@@ -103,7 +103,6 @@ describe('ProposeToolCardComponent', () => {
     };
     expect(inst.canApprove()).toBe(true);
 
-    // The first input in the pending card is the tool-name field.
     const nameInput = fixture.nativeElement.querySelector('input') as HTMLInputElement;
     nameInput.value = '';
     nameInput.dispatchEvent(new Event('input'));

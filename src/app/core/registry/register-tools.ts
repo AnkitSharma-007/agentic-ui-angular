@@ -3,12 +3,8 @@ import { ToolRegistry } from './tool-registry';
 import type { ToolManifest } from './tool-descriptor';
 import { CustomToolsService } from '../custom-tools/custom-tools.service';
 
-// Import each built-in manifest lazily so its (verbose) Gemini declaration
-// schema stays out of the initial `main` chunk — the metadata is only needed
-// once the first agent turn builds the tool list. The app initializer already
-// awaits async work (IndexedDB rehydration below), so resolving these small
-// modules in parallel adds no perceptible startup cost while trimming the
-// initial bundle (H12).
+// Lazy-load built-in manifests so verbose Gemini schemas stay out of main chunk;
+// initializer awaits parallel resolution with IndexedDB rehydration.
 const BUILT_IN_MANIFEST_LOADERS: ReadonlyArray<() => Promise<ToolManifest>> = [
   () =>
     import('../../shared/tools/booking-confirmation-card/booking-confirmation-card.manifest').then(
@@ -56,9 +52,7 @@ export function provideTools(): EnvironmentProviders {
       registry.register(manifest);
     }
 
-    // Await IndexedDB rehydration so the first agent turn sees custom tools
-    // (startup race, H6). Built-ins are registered first, so `load()` never
-    // shadows them.
+    // Await IndexedDB so first turn sees custom tools; built-ins register first so load() never shadows them.
     await customTools.load();
   });
 }

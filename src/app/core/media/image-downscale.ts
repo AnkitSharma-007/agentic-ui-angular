@@ -1,12 +1,9 @@
-// Client-side image downscaling. Bounds the base64 payload we inline into a
-// Gemini request (and later persist in a replay) by capping the longest edge
-// and re-encoding as JPEG. The dimension math is a pure function so it stays
-// unit-testable without a DOM canvas.
+// Downscale images before inlining into Gemini requests and replay storage.
 
 import type { InlineAttachment } from './attachment.types';
 
 export const MAX_ATTACHMENTS = 4;
-export const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024; // 4 MB pre-encode
+export const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024;
 export const DEFAULT_MAX_EDGE = 1568; // Gemini's high-detail image tile ceiling
 export const DEFAULT_QUALITY = 0.82;
 
@@ -15,8 +12,7 @@ export interface ScaledDimensions {
   readonly height: number;
 }
 
-// Scale so the longest edge is at most `maxEdge`, preserving aspect ratio.
-// Never upscales; guards against zero-sized inputs.
+// Scale longest edge to `maxEdge`; never upscale; guard zero-sized inputs.
 export function computeScaledDimensions(
   width: number,
   height: number,

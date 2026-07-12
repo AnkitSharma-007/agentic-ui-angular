@@ -141,8 +141,7 @@ describe('chunkToEvents — turn lifecycle', () => {
       state,
     );
     state = first.state;
-    // A late chunk carrying a tool call after finishReason must NOT emit a
-    // tool_call (it would land after round_complete and break settlement order).
+    // Late tool_call after finishReason must not emit — breaks settlement order.
     const late = chunkToEvents(
       {
         candidates: [
@@ -168,8 +167,7 @@ describe('chunkToEvents — malformed tool call (L1)', () => {
 });
 
 describe('chunkToEvents — Scenario B fixture (thinking + parallel tool calls)', () => {
-  // Shape replayed from spike/findings.md Scenario B: 2 thoughts, then 3
-  // parallel tool calls, then an empty-text part, then finishReason=STOP.
+  // Scenario B fixture: 2 thoughts, 3 parallel tool calls, empty-text part, finishReason=STOP.
   const scenarioB: readonly GeminiChunk[] = [
     { candidates: [{ content: { parts: [{ text: '**Defining the Objective**…', thought: true }] } }] },
     { candidates: [{ content: { parts: [{ text: '**Pinpointing Key Dates**…', thought: true }] } }] },

@@ -70,9 +70,7 @@ export class ToolsComponent {
   protected readonly specs = this.customTools.specs;
   protected readonly editingId = signal<string | null>(null);
 
-  // The whole editor is a single Signal Forms model. Validation (tool-name
-  // format + uniqueness, required description, per-parameter name rules +
-  // duplicate detection) is declared once in the schema below.
+  // Editor validation (name format/uniqueness, description, parameters) lives in the schema below.
   protected readonly builderModel = signal<BuilderForm>(emptyBuilder());
 
   protected readonly builderForm = form(this.builderModel, (p) => {
@@ -102,8 +100,7 @@ export class ToolsComponent {
   protected readonly saving = signal(false);
   protected readonly saveError = signal<string | null>(null);
   protected readonly justSaved = signal<string | null>(null);
-  // Id of the tool awaiting a two-step inline delete confirm, replacing the
-  // native confirm() dialog for a consistent, styleable pattern (M12).
+  // Id awaiting two-step inline delete confirm instead of native confirm().
   protected readonly confirmingDeleteId = signal<string | null>(null);
 
   protected readonly typeOptions: readonly { value: CustomToolParameterType; label: string }[] = [
@@ -112,19 +109,16 @@ export class ToolsComponent {
     { value: 'boolean', label: 'boolean' },
   ];
 
-  // Stable error accessor for the name field the template and tests read.
   protected readonly nameError = computed<string | null>(
     () => this.builderForm.name().errors()[0]?.message ?? null,
   );
 
-  // rAF-coalesced mirrors so the template-editor keystrokes don't re-run
-  // `applyResponseTemplate` + `JSON.stringify` on every character.
+  // rAF-coalesced mirrors so keystrokes don't re-run applyResponseTemplate + JSON.stringify each char.
   private readonly debouncedParameters = signal<readonly DraftParameter[]>([]);
   private readonly debouncedTemplate = signal(DEFAULT_TEMPLATE);
 
   constructor() {
-    // First tick is synchronous so initial state + `loadExample()` settle
-    // before the test's first read.
+    // First tick is synchronous so initial state settles before the test's first read.
     let synchronous = true;
     let rafHandle: number | null = null;
 
@@ -245,8 +239,7 @@ export class ToolsComponent {
           required: p.required,
         })) as readonly CustomToolParameter[],
         responseTemplate: model.responseTemplate,
-        // Preserve provenance when editing (an agent-authored tool stays labelled
-        // as such); brand-new tools built here are user-authored.
+        // Preserve agent-authored provenance on edit; new tools are user-authored.
         origin: this.editingId() ? this.customTools.getById(id)?.origin ?? 'user' : 'user',
         createdAt: this.editingId()
           ? this.customTools.getById(id)?.createdAt ?? now
@@ -264,7 +257,7 @@ export class ToolsComponent {
   }
 
   protected async delete(spec: CustomToolSpec): Promise<void> {
-    // First click arms the inline confirm; second click on the same tool commits.
+    // Two-step delete: first click arms, second commits.
     if (this.confirmingDeleteId() !== spec.id) {
       this.confirmingDeleteId.set(spec.id);
       return;

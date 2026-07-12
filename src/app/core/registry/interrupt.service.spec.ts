@@ -42,15 +42,13 @@ describe('InterruptService', () => {
   });
 
   it('buffers a decision that arrives before pendingDecision registers (M5)', async () => {
-    // The UI can render the approval card and a fast/auto approver can dispatch
-    // a decision before settlement calls pendingDecision — the decision must be
-    // honoured on registration, not dropped.
+    // Fast/auto approver may decide before settlement registers — decision must be honoured on registration.
     interrupts.decide('early', { kind: 'select', selection: { id: 'opt-1' } });
     expect(interrupts.pendingIds()).toEqual([]);
 
     const promise = interrupts.pendingDecision('early', new AbortController().signal);
     await expect(promise).resolves.toEqual({ kind: 'select', selection: { id: 'opt-1' } });
-    // The buffered decision is consumed once — a second registration waits.
+    // Buffered decision is consumed once on registration.
     expect(interrupts.isPending('early')).toBe(false);
   });
 

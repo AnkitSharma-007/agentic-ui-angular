@@ -46,9 +46,7 @@ describe('ApiKeyService', () => {
     expect(service.hasKey()).toBe(true);
     expect(service.storage()).toBe('session');
 
-    // No plaintext slot is written…
     expect(sessionStorage.getItem(LEGACY_SESSION_KEY)).toBeNull();
-    // …only an AES-GCM envelope, and it never contains the raw key.
     const raw = sessionStorage.getItem(SESSION_ENVELOPE_KEY)!;
     expect(raw).toBeTruthy();
     expect(raw).not.toContain('sk-test-123');
@@ -56,7 +54,7 @@ describe('ApiKeyService', () => {
     expect(envelope.version).toBe(1);
     expect(envelope.iv).toBeTruthy();
     expect(envelope.ciphertext).toBeTruthy();
-    // The KEK is stored as a non-extractable CryptoKey handle in IndexedDB.
+    // KEK is a non-extractable CryptoKey in IndexedDB.
     const kek = await getSessionKek();
     expect(kek).toBeInstanceOf(CryptoKey);
     expect(kek!.extractable).toBe(false);
@@ -70,7 +68,7 @@ describe('ApiKeyService', () => {
 
     await service.setForSession('sk-nopersist');
 
-    // The key still works this tab, but the failure is now observable (not swallowed).
+    // Key works this tab; persistence failure is observable.
     expect(service.key()).toBe('sk-nopersist');
     expect(service.sessionPersistenceFailed()).toBe(true);
 
@@ -98,8 +96,7 @@ describe('ApiKeyService', () => {
     const service = TestBed.inject(ApiKeyService);
     await service.setForSession('sk-reload');
 
-    // A brand-new instance starts empty until restore() runs (the app does this
-    // in an APP_INITIALIZER).
+    // Fresh instance starts empty until restore() (APP_INITIALIZER in app).
     const fresh = freshService();
     expect(fresh.key()).toBeNull();
 
@@ -111,7 +108,7 @@ describe('ApiKeyService', () => {
   it('restore() drops an orphaned envelope when the KEK is gone', async () => {
     const service = TestBed.inject(ApiKeyService);
     await service.setForSession('sk-orphan');
-    // Simulate losing the IndexedDB half while the sessionStorage half remains.
+    // Simulate losing the IndexedDB half while sessionStorage remains.
     await deleteSessionKek();
 
     const fresh = freshService();
@@ -129,7 +126,7 @@ describe('ApiKeyService', () => {
 
     expect(service.key()).toBe('sk-legacy');
     expect(service.storage()).toBe('session');
-    // Legacy plaintext is upgraded away, replaced by an envelope.
+    // Legacy plaintext upgraded to an encrypted envelope.
     expect(sessionStorage.getItem(LEGACY_SESSION_KEY)).toBeNull();
     expect(sessionStorage.getItem(SESSION_ENVELOPE_KEY)).toBeTruthy();
   });
@@ -220,7 +217,7 @@ describe('ApiKeyService — encrypt + decrypt round-trip', () => {
     await service.setEncryptedLocal('sk-secret', 'correct horse battery staple');
 
     const payload = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY)!);
-    payload.iterations = 5_000_000_000; // would freeze the UI thread on derive
+    payload.iterations = 5_000_000_000; // absurd count — would freeze derive
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(payload));
 
     const fresh = freshService();
@@ -235,7 +232,7 @@ describe('ApiKeyService — encrypt + decrypt round-trip', () => {
     await service.setEncryptedLocal('sk-secret', 'correct horse battery staple');
 
     const payload = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY)!);
-    payload.iterations = 10; // far below the floor → weakened KDF
+    payload.iterations = 10; // below KDF floor
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(payload));
 
     expect(freshService().hasLockedBlob()).toBe(false);

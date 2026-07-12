@@ -11,11 +11,7 @@ import {
 } from './app-error';
 import { redactString } from '../logging/redact';
 
-// The single source of error classification for Atlas. Turns any thrown value
-// into a structured `AppError` with a category, a safe user message, and
-// (redacted) technical detail. The textual heuristics below intentionally
-// preserve the behavior of the legacy `humanizeGeminiError` so migrating call
-// sites is a no-op for users.
+// Single source of error classification. Textual heuristics preserve legacy humanizeGeminiError behavior for migration.
 
 export function normalizeError(err: unknown, context?: Record<string, unknown>): AppError {
   // Already normalized — just enrich with any newly-available context.
@@ -40,17 +36,12 @@ export function normalizeError(err: unknown, context?: Record<string, unknown>):
     });
   }
 
-  // Angular HttpClient failure. Forward-looking: no HttpClient consumer ships
-  // today (Gemini traffic goes through the @google/genai SDK), but the
-  // interceptor + this status-based mapping are ready for the first one. Matched
-  // by duck-typing so this core module stays free of an @angular/common/http
-  // import; status wins over the textual heuristics below.
+  // HttpErrorResponse (duck-typed to avoid @angular/common/http import). Status wins over textual heuristics below.
   if (isHttpErrorResponse(err)) {
     return httpErrorToAppError(err, technicalMessage, context);
   }
 
-  // A lazily-loaded chunk failed to import — usually a stale deploy or a blip
-  // while offline. Recoverable via reload.
+  // Lazy chunk import failed (stale deploy/offline) — recoverable via reload.
   if (isChunkLoadError(err, message)) {
     return new ClientError({
       code: 'chunk_load',
@@ -74,8 +65,7 @@ export function normalizeError(err: unknown, context?: Record<string, unknown>):
     });
   }
 
-  // Textual classification of Gemini / transport errors. Order matches the
-  // legacy humanizer: auth → rate limit → network → CORS.
+  // Textual Gemini/transport classification; order: auth → rate limit → network → CORS (legacy humanizer parity).
   if (/401|unauthorized|api key/i.test(message)) {
     return new AuthError({
       code: 'unauthorized',
@@ -115,7 +105,6 @@ export function normalizeError(err: unknown, context?: Record<string, unknown>):
     });
   }
 
-  // Schema / input validation (Zod and friends).
   if (isValidationError(err)) {
     return new ValidationError({
       userMessage: 'Some values were invalid. Please check your input and try again.',
@@ -125,8 +114,7 @@ export function normalizeError(err: unknown, context?: Record<string, unknown>):
     });
   }
 
-  // Unrecognized. Dev builds surface the (redacted) detail to aid debugging;
-  // production shows a generic message so nothing internal leaks.
+  // Unrecognized: dev surfaces redacted detail; production shows generic message.
   return new AppError({
     category: 'unknown',
     userMessage: unknownUserMessage(technicalMessage, isDevMode()),
@@ -136,18 +124,12 @@ export function normalizeError(err: unknown, context?: Record<string, unknown>):
   });
 }
 
-// Message shown for an unrecognized error. Split out (and `isDev` injected) so
-// both the dev-detail and prod-generic branches are unit-testable without
-// mocking Angular's global dev-mode flag.
+// Split out (isDev injected) so dev/prod branches are unit-testable without mocking isDevMode().
 export function unknownUserMessage(technicalMessage: string, isDev: boolean): string {
   return isDev ? technicalMessage || 'Unknown error.' : GENERIC_USER_MESSAGE;
 }
 
-// Storage-context normalization. Quota already classifies via `normalizeError`
-// (QuotaExceededError -> StorageError). Within an IndexedDB/localStorage flow,
-// an otherwise-unclassified failure — an open that is blocked or version-errored,
-// a private-mode rejection — is still a storage problem, so re-tag it as a
-// StorageError with actionable copy. Recognized categories pass through.
+// Re-tag unknown IDB/localStorage failures as StorageError; recognized categories and quota pass through.
 export function normalizeStorageError(err: unknown, context?: Record<string, unknown>): AppError {
   const normalized = normalizeError(err, context);
   if (normalized.category !== 'unknown') return normalized;
@@ -161,10 +143,7 @@ export function normalizeStorageError(err: unknown, context?: Record<string, unk
   });
 }
 
-// Best-effort extraction of a human string from an unknown throwable. Mirrors
-// the legacy `humanizeGeminiError` implementation so the adapter is
-// byte-for-byte compatible: plain-object rejections dig out `.message` (or
-// JSON-stringify) rather than collapsing to "[object Object]".
+// Mirrors legacy humanizeGeminiError: plain objects use .message or JSON-stringify, not "[object Object]".
 export function extractMessage(err: unknown): string {
   if (err == null) return '';
   if (err instanceof Error) return err.message ?? '';
@@ -182,8 +161,7 @@ export function extractMessage(err: unknown): string {
   return String(err);
 }
 
-// Minimal structural view of an Angular `HttpErrorResponse` — enough to
-// classify by status without importing the HTTP package into the core.
+// Minimal HttpErrorResponse shape for status classification without importing HTTP package.
 interface HttpErrorLike {
   readonly name: string;
   readonly status: number;
@@ -200,8 +178,7 @@ function isHttpErrorResponse(err: unknown): err is HttpErrorLike {
   );
 }
 
-// Map an HTTP status onto the taxonomy. Retryable only where a later attempt can
-// plausibly succeed (transport failure, timeout, rate-limit, transient 5xx).
+// Map HTTP status to taxonomy; retryable only when a later attempt can plausibly succeed.
 function httpErrorToAppError(
   err: HttpErrorLike,
   technicalMessage: string,
@@ -210,8 +187,7 @@ function httpErrorToAppError(
   const status = err.status;
   const ctx = { ...context, httpStatus: status };
 
-  // Status 0: the browser never received a response (offline, DNS, CORS, or a
-  // dropped connection) — a transport problem, not a server one.
+  // Status 0: browser got no response (offline/DNS/CORS/dropped connection) — transport, not server.
   if (status === 0) {
     return new NetworkError({
       code: 'offline',

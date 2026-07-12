@@ -51,8 +51,7 @@
   color: var(--mat-sys-on-surface-variant);
 }
 
-// Accent the left edge + icon by severity, reusing the M3 role colors already
-// used across the app's status chips and banners.
+// Left-edge + icon accent by severity, reusing M3 role colors from status chips/banners.
 .toast--info {
   border-left: 3px solid var(--mat-sys-primary);
   .toast-icon {

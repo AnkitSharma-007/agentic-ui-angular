@@ -50,9 +50,7 @@ export class ComparisonTableComponent {
     });
   }
 
-  // Decline the whole comparison instead of forcing a pick. The agent sees a
-  // rejection and can re-plan, rather than the loop staying blocked until the
-  // user cancels the entire stream (H11).
+  // Reject the comparison so the agent can re-plan instead of blocking until stream cancel.
   protected cancel(): void {
     this.interrupts.decide(this.callId(), { kind: 'reject' });
   }

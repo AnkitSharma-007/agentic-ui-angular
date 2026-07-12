@@ -108,7 +108,6 @@ describe('TokenAccountantService', () => {
     service.clearLifetime();
     expect(service.lifetimeTotals()).toEqual(ZERO_USAGE);
     expect(service.lifetimeRounds()).toBe(0);
-    // Current turn unaffected.
     expect(service.currentTurn().rounds).toHaveLength(1);
   });
 

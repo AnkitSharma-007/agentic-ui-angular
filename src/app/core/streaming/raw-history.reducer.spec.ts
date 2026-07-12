@@ -44,9 +44,7 @@ describe('appendChunkToContent', () => {
 });
 
 describe('signature placement — Scenario A (thinking-only, signature on trailing empty-text)', () => {
-  // Replayed from spike/findings.md Scenario A: 3 thought parts, 22 visible
-  // text parts, then a final empty-text part carrying the `thoughtSignature`.
-  // The empty-text part is load-bearing — it MUST survive into raw history.
+  // Scenario A: 3 thought + visible text parts; trailing empty-text carries thoughtSignature (load-bearing in raw history).
   const thoughtSignature = 'A'.repeat(5784);
   const scenarioA: readonly GeminiChunk[] = [
     { candidates: [{ content: { parts: [{ text: '**T1**', thought: true }] } }] },
@@ -75,9 +73,7 @@ describe('signature placement — Scenario A (thinking-only, signature on traili
 });
 
 describe('signature placement — Scenario B (thinking + tools, signature on first functionCall)', () => {
-  // Replayed from spike/findings.md Scenario B: signature lives on the FIRST
-  // parallel functionCall only. Subsequent parallel calls and the trailing
-  // empty-text part carry no signature.
+  // Scenario B: signature on first parallel functionCall only; later calls and empty-text have none.
   const thoughtSignature = 'B'.repeat(2800);
   const scenarioB: readonly GeminiChunk[] = [
     { candidates: [{ content: { parts: [{ text: '**Defining**', thought: true }] } }] },

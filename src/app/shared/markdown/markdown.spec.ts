@@ -33,8 +33,6 @@ describe('MarkdownComponent', () => {
     const fixture = TestBed.createComponent(MarkdownComponent);
     fixture.componentRef.setInput('source', 'before <script>alert(1)</script> after');
     await fixture.whenStable();
-    // Angular's DomSanitizer strips <script>; the rendered HTML should not
-    // contain an executable script tag.
     expect((fixture.nativeElement as HTMLElement).innerHTML.toLowerCase()).not.toContain(
       '<script',
     );
@@ -48,9 +46,7 @@ describe('MarkdownComponent', () => {
     );
     await fixture.whenStable();
     const el = fixture.nativeElement as HTMLElement;
-    // The raw <img> is escaped to inert text, so no real element is created…
     expect(el.querySelector('img')).toBeNull();
-    // …and the javascript: link is dropped rather than rendered as an anchor.
     const jsAnchors = Array.from(el.querySelectorAll('a')).filter((a) =>
       a.getAttribute('href')?.toLowerCase().startsWith('javascript:'),
     );
@@ -67,8 +63,6 @@ describe('renderMarkdown — hardening (H3)', () => {
 
   it('escapes an onerror image payload instead of emitting an <img>', () => {
     const out = renderMarkdown('<img src=x onerror="alert(1)">');
-    // No real <img> tag is emitted; the payload is escaped to inert text
-    // (the literal characters may appear, but never as live markup).
     expect(out.toLowerCase()).not.toContain('<img');
     expect(out).toContain('&lt;img');
   });

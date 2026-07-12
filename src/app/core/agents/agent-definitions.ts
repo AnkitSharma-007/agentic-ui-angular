@@ -1,9 +1,6 @@
 import type { AgentDefinition } from './agent.types';
 
-// Appended to the active agent's system prompt (by the agent loop) only when
-// tool synthesis is enabled and the per-turn cap has not been hit. Kept out of
-// the static prompts so the guidance never mentions a capability the model
-// can't actually use in the current round.
+// Appended by the agent loop only when tool synthesis is enabled — kept out of static prompts.
 export const TOOL_SYNTHESIS_CLAUSE = [
   "If no existing tool — built-in or user-defined — can fulfil the user's request,",
   'do not fabricate an answer or pretend to have data. Instead call `proposeTool` to',
@@ -79,9 +76,7 @@ export const BUILT_IN_AGENTS: readonly AgentDefinition[] = [
 
 export const DEFAULT_AGENT_ID = TRIP_PLANNER_AGENT.id;
 
-// The set of ids a handoff can target. Mirrors the AgentRegistry's own lookup
-// so `handoffTo` can reject an unknown specialist at execution time instead of
-// silently reporting success (H2).
+// Handoff target ids — mirrors AgentRegistry so `handoffTo` rejects unknown specialists at execution time.
 export const KNOWN_AGENT_IDS: ReadonlySet<string> = new Set(
   BUILT_IN_AGENTS.map((a) => a.id),
 );

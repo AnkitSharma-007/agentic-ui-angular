@@ -37,9 +37,7 @@ interface BudgetForm {
   maxCost: number | null;
 }
 
-// A budget cap is either "unset" (null → no cap) or a positive number. Zero and
-// negative values are meaningless as caps, so they surface an inline error and
-// are coerced to null on save.
+// Budget cap: null = no cap; zero/negative values surface inline error and coerce to null on save.
 function coercePositive(value: number | null): number | null {
   return value !== null && Number.isFinite(value) && value > 0 ? value : null;
 }
@@ -91,9 +89,7 @@ export class SettingsComponent {
     this.models.find((m) => m.id === this.gemini.selectedModel()),
   );
 
-  // Angular Aria's Listbox is the v22 single-selection pattern (roving tabindex,
-  // arrow-key nav, typeahead — closes M18). It models the selection as an array,
-  // so we adapt the ThemeService's single `preference` with a 1-element array.
+  // Aria Listbox for v22 single-selection; adapt ThemeService's single preference via a 1-element array.
   protected readonly themeSelection = computed<ThemePreference[]>(() => [
     this.theme.preference(),
   ]);
@@ -105,8 +101,7 @@ export class SettingsComponent {
     }
   }
 
-  // Human-readable label for the key-storage tier instead of the raw enum
-  // (`encrypted-local` / `session`).
+  // Human-readable key-storage tier label instead of raw enum values.
   protected readonly storageLabel = computed(() => {
     if (this.apiKey.storage() === 'encrypted-local' || this.apiKey.hasLockedBlob()) {
       return 'Encrypted on this device';
@@ -114,9 +109,7 @@ export class SettingsComponent {
     return this.apiKey.hasKey() ? 'This session only' : 'Not configured';
   });
 
-  // Budget caps as a Signal Forms model: number | null (null = no cap). Each
-  // field validates as "empty or > 0" so bad values surface inline instead of
-  // being silently dropped on save.
+  // Budget caps as Signal Forms: number | null; validates empty or > 0 so bad values surface inline.
   protected readonly budgetModel = signal<BudgetForm>({
     maxTokens: this.budget.config().maxTokens ?? null,
     maxRounds: this.budget.config().maxRounds ?? null,
@@ -146,7 +139,7 @@ export class SettingsComponent {
     this.toolSynthesis.setEnabled(enabled);
   }
 
-  // Two-step inline confirm instead of a native confirm() dialog (M12).
+  // Two-step inline confirm instead of native confirm().
   protected readonly confirmingClearKey = signal(false);
 
   protected clearKey(): void {

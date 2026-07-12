@@ -12,15 +12,11 @@ export interface ReplayPayload {
   readonly model: string;
   readonly events: readonly AgentEvent[];
   readonly rawHistory: readonly HistoryContent[];
-  // Specs for any custom tools this run invoked (agent-synthesized or
-  // hand-built). Embedded so the replay renders its tool cards even after the
-  // tool is deleted or on another device. Optional: older payloads omit it.
+  // Embedded custom tool specs so replay cards render after deletion or on another device.
   readonly customToolSpecs?: readonly CustomToolSpec[];
   readonly durationMs: number;
   readonly eventCount: number;
-  // Approximate encoded size of the run (bytes), recorded at save time so the
-  // Library can flag heavy replays without loading each payload. Optional:
-  // payloads saved before this field was added omit it (L10).
+  // Encoded size at save time so the Library can flag heavy replays without loading payloads.
   readonly sizeBytes?: number;
   readonly stats: {
     readonly chunks: number;
@@ -53,10 +49,7 @@ export function toSummary(p: ReplayPayload): ReplaySummary {
   };
 }
 
-// Events and history parts are large discriminated unions; validating only that
-// each entry is an object with a string `type` (events) / a `parts` array
-// (history) is enough to keep a corrupt row from crashing `toSummary`, the
-// player, or `byDateDesc` without re-declaring the whole schema here.
+// Light structural validation for events/history — enough to survive corrupt rows without re-declaring the full schema.
 const eventShape = z.object({ type: z.string() });
 const historyShape = z.object({ parts: z.array(z.unknown()) });
 
@@ -71,9 +64,7 @@ const replaySummarySchema = z.object({
   sizeBytes: z.number().optional(),
 });
 
-// The summary store is written from the typed `save()` path, but IndexedDB is
-// user-controlled — validate rows on read so a tampered summary can't crash the
-// Library list (e.g. an undefined `savedAt` throwing in `byDateDesc`).
+// Validate summary rows on read — IndexedDB is user-controlled and tampered `savedAt` can crash `byDateDesc`.
 export function isValidReplaySummary(value: unknown): value is ReplaySummary {
   return replaySummarySchema.safeParse(value).success;
 }
@@ -98,11 +89,7 @@ const replayPayloadSchema = z.object({
   }),
 });
 
-// Validate an untrusted payload read from IndexedDB. On success we return the
-// original object unchanged (narrowed) so no event/history internals are lost —
-// the schema only guards the fields the app relies on, including
-// `schemaVersion`. Invalid `customToolSpecs` are filtered separately at
-// registration time via `isValidCustomToolSpec`.
+// Validate untrusted payloads; return the original object narrowed (not a Zod clone) so event/history internals stay intact.
 export function isValidReplayPayload(value: unknown): value is ReplayPayload {
   return replayPayloadSchema.safeParse(value).success;
 }

@@ -7,9 +7,7 @@ import type {
   LetUserChooseResult,
 } from './comparison-table.types';
 
-// letUserChoose is interactive: the executor below never actually runs.
-// The user's pick is delivered through InterruptService.decide() and the
-// agent loop short-circuits with { selected: <option> }.
+// Interactive tool: user's pick arrives via InterruptService.decide(); loop short-circuits with `{ selected }`.
 
 const comparisonDetailSchema = z.object({
   label: z.string().min(1),

@@ -45,9 +45,7 @@ export function idbClear(db: IDBDatabase, store: string): Promise<void> {
   return run(db, store, 'readwrite', (s) => s.clear());
 }
 
-// Multi-store atomic writes. IndexedDB commits a transaction as a unit, so
-// putting a full record and its lightweight summary (or deleting both) in one
-// transaction keeps the two stores from drifting if the tab dies mid-write.
+// Multi-store atomic writes — keeps paired stores from drifting if the tab dies mid-write.
 export function idbPutMany(
   db: IDBDatabase,
   ops: ReadonlyArray<{ readonly store: string; readonly value: unknown }>,
@@ -94,8 +92,7 @@ function run<T>(
   });
 }
 
-// Resolve once the whole transaction commits (not per-request), so a batch of
-// writes across several stores is reported as a single success/failure.
+// Resolve on transaction commit, not per-request — batch writes report as one success/failure.
 function runTx(
   db: IDBDatabase,
   storeNames: readonly string[],

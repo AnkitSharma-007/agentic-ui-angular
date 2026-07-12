@@ -40,8 +40,7 @@ export class ObservabilityDrawerComponent {
   protected readonly currentTurn = this.accountant.currentTurn;
   protected readonly selectedRow = this.observability.selectedRow;
 
-  // The `<aside>` stays mounted (slide transition), so cdkTrapFocus's
-  // init/destroy-driven auto-capture doesn't fire — we manage focus by hand.
+  // Aside stays mounted for slide transition — manual focus management instead of cdkTrapFocus auto-capture.
   private readonly closeBtn = viewChild<ElementRef<HTMLButtonElement>>('closeBtn');
   private previouslyFocused: HTMLElement | null = null;
 

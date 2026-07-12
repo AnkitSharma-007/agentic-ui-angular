@@ -33,10 +33,10 @@ describe('AppShellErrorService', () => {
     service.show(new AppError({ category: 'client', code: 'chunk_load' }));
     expect(service.reloadSuggested()).toBe(true);
 
-    service.show(new ClientError()); // recoverable=false, category=client
+    service.show(new ClientError());
     expect(service.reloadSuggested()).toBe(true);
 
-    service.show(new NetworkError()); // recoverable, retryable
+    service.show(new NetworkError());
     expect(service.reloadSuggested()).toBe(false);
   });
 });

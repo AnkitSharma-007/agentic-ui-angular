@@ -111,9 +111,7 @@ describe('AgentEventStore', () => {
       name: 'customTool',
       args: {},
     });
-    // A custom-tool response that legitimately includes an `error` field as
-    // status metadata (e.g. "no error occurred") must NOT be misrendered as
-    // a failure. Only the canonical single-key { error: msg } envelope is.
+    // Only canonical single-key `{ error: msg }` is a failure — not arbitrary `error` fields in success payloads.
     store.pushEvent({
       type: 'tool_result',
       ts: 2,
@@ -250,15 +248,11 @@ describe('AgentEventStore', () => {
 
   it('does not open an empty model turn for a parts-less chunk (M3)', () => {
     store.appendUserPrompt('Hi');
-    // A lone finishReason chunk (no model parts) arriving before any model
-    // content must NOT seed an empty { role: 'model', parts: [] } entry —
-    // Gemini rejects those on the next round.
+    // Lone finishReason before model content must not seed empty model turn — Gemini rejects on next round.
     store.appendChunkToRawHistory({
       candidates: [{ content: { role: 'model', parts: [] }, finishReason: 'STOP' }],
     });
     expect(store.rawHistory().map((h) => h.role)).toEqual(['user']);
-
-    // A real model chunk afterwards opens the model turn as usual.
     store.appendChunkToRawHistory({
       candidates: [{ content: { role: 'model', parts: [{ text: 'Hello.' }] } }],
     });
@@ -315,8 +309,7 @@ describe('AgentEventStore', () => {
   });
 
   it('drops an attachment with a non-allowlisted display MIME (L12)', () => {
-    // A poisoned/edited stored turn: an inlineData part whose MIME is not a safe
-    // displayable type must not be turned into a data: URL and rendered.
+    // Non-allowlisted display MIME must not become a data: URL for rendering.
     store.appendUserTurn({
       text: 'look at this',
       attachments: [
@@ -356,9 +349,8 @@ describe('AgentEventStore', () => {
 
     store.beginTurn('t2');
 
-    // UI events reset for the new turn…
+    // events reset; rawHistory retained for multi-turn context.
     expect(store.events()).toEqual([]);
-    // …but the multi-turn model context (rawHistory) is retained.
     expect(store.rawHistory().length).toBeGreaterThan(0);
   });
 
@@ -368,8 +360,7 @@ describe('AgentEventStore', () => {
     const snapshot = store.events();
     expect(snapshot).toHaveLength(1);
 
-    // A subsequent streamed delta must not retroactively grow an earlier
-    // snapshot — save() relies on reading a stable, point-in-time event list.
+    // Snapshot must not grow after capture — save() relies on point-in-time event list.
     pushTextDelta(store, 't1', 'second');
     expect(snapshot).toHaveLength(1);
     expect(store.events()).toHaveLength(2);

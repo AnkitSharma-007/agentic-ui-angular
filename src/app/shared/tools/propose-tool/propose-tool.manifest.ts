@@ -3,9 +3,7 @@ import type { ProposeToolArgs, ProposeToolResult } from './propose-tool.types';
 
 export const PROPOSE_TOOL_NAME = 'proposeTool';
 
-// proposeTool is interactive: the executor never runs. The user reviews the
-// proposed definition and either approves it (registering a real, callable
-// custom tool and resolving via `select`) or rejects with a note.
+// Interactive tool: executor never runs; user approves (register + `select`) or rejects with a note.
 export const PROPOSE_TOOL_META: ToolMeta = {
   name: PROPOSE_TOOL_NAME,
   description:

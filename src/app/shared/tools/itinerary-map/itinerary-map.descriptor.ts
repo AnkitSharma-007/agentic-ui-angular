@@ -50,8 +50,7 @@ const renderItineraryArgsSchema = z.object({
   waypoints: z.array(waypointSchema).min(1).max(12),
 });
 
-// The "render" is a UI concern — the executor just validates input,
-// computes the bounding box, and acks the canonical waypoint list.
+// Executor validates input, computes bbox, and acks waypoints — rendering is a UI concern.
 async function renderItineraryExecutor(
   args: RenderItineraryArgs,
   ctx: { signal: AbortSignal },

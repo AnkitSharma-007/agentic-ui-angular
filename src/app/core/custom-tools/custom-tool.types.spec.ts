@@ -108,7 +108,6 @@ describe('applyResponseTemplate', () => {
       expect(value['safe']).toBe(2);
       expect(Object.prototype.hasOwnProperty.call(value, '__proto__')).toBe(false);
       expect(Object.prototype.hasOwnProperty.call(value, 'constructor')).toBe(false);
-      // Object.prototype is untouched.
       expect(({} as Record<string, unknown>)['polluted']).toBeUndefined();
     }
   });

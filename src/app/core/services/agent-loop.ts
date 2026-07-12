@@ -27,21 +27,16 @@ import type { LoggerService } from '../logging/logger.service';
 
 export const MAX_AGENT_ROUNDS = 8;
 
-// Cap how many tools the agent may propose in a single turn. Prevents runaway
-// self-extension while still allowing a compose-a-couple-tools demo flow.
+// Cap proposed tools per turn to prevent runaway self-extension.
 export const MAX_TOOL_SYNTHESIS_PER_TURN = 2;
 
 export interface StreamTimeouts {
-  // Max wait for the FIRST chunk of a round — a thinking model can legitimately
-  // take a while before it emits anything.
+  // Max wait for the first chunk — thinking models can take a while before emitting.
   readonly firstChunkMs: number;
-  // Max wait between chunks once the stream has started flowing.
   readonly idleMs: number;
 }
 
-// Generous defaults: long enough not to trip on slow-but-alive streams, short
-// enough that a truly stalled connection surfaces as an error the user can act
-// on rather than an indefinite spinner.
+// Long enough for slow-but-alive streams; short enough that a stalled connection surfaces as a retryable error.
 export const DEFAULT_STREAM_TIMEOUTS: StreamTimeouts = {
   firstChunkMs: 60_000,
   idleMs: 30_000,
@@ -85,18 +80,13 @@ export interface AgentLoopDeps {
     AgentRegistry,
     'activeAgent' | 'activeAgentId' | 'switchActive' | 'resetForNewTurn'
   >;
-  // Names of user-defined custom tools. Unioned into every agent's declaration
-  // set so custom tools are visible regardless of which built-in agent is
-  // active. Optional in tests; production wires CustomToolsService.
+  // User-defined custom tool names, unioned into every agent's declaration set. Optional in tests.
   readonly customToolNames?: () => ReadonlySet<string>;
-  // Whether the agent may propose brand-new tools (`proposeTool`). Optional in
-  // tests; production wires a persisted settings flag. Defaults to off.
+  // Whether proposeTool is allowed; production wires a persisted flag. Defaults off.
   readonly allowToolSynthesis?: () => boolean;
   readonly now?: () => number;
-  // Best-effort logger for non-fatal diagnostics (e.g. tool-descriptor preload
-  // failures). Optional in tests; production wires LoggerService.
+  // Best-effort logger for non-fatal diagnostics. Optional in tests.
   readonly logger?: Pick<LoggerService, 'warn' | 'error'>;
-  // First-chunk / inter-chunk stall timeouts. Optional; defaults applied.
   readonly timeouts?: StreamTimeouts;
 }
 
@@ -115,9 +105,7 @@ export async function* runAgentTurn(
 ): AsyncGenerator<AgentEvent> {
   const now = deps.now ?? Date.now;
 
-  // Snapshot history before we append the user turn so a turn that fails before
-  // committing any model output can be rolled back (M6) — otherwise the orphaned
-  // user message lingers and a retry duplicates it.
+  // Snapshot history before appending the user turn so a pre-commit failure can roll back the orphaned message.
   const historyBeforeTurn = deps.store.rawHistory();
   beginTurn(turnId, normalizeUserTurnInput(input), deps);
   yield { type: 'turn_start', ts: now(), turnId };
@@ -162,11 +150,7 @@ export async function* runAgentTurn(
         return;
       }
 
-      // M1: the top-of-loop guard alone lets a run overshoot by a full round —
-      // a round can blow the token/cost cap and we'd only catch it when the
-      // *next* round starts (and never, if this was the final round). Re-check
-      // the moment this round's usage is recorded, before we spend another
-      // round settling tool calls and calling the model again.
+      // Re-check budget after this round's usage — the top-of-loop guard alone can overshoot by a full round.
       const overshoot = checkBudgetGuard(deps);
       if (overshoot) {
         yield budgetTerminationEvent(turnId, completedRounds(deps), overshoot, now);
@@ -186,11 +170,7 @@ export async function* runAgentTurn(
       finishReason: 'MAX_AGENT_ROUNDS',
     };
   } catch (err) {
-    // M6: if the turn threw before committing any model output — i.e. only the
-    // just-appended user message was added (a stream-setup failure) — roll it
-    // back so a retry doesn't append a second copy. User-initiated cancellation
-    // (signal.aborted) intentionally keeps partial context on screen, and a
-    // mid-stream failure keeps whatever was already committed.
+    // Roll back if only the user message was added (stream-setup failure). Abort and mid-stream failures keep committed context.
     if (!signal.aborted && deps.store.rawHistory().length === historyBeforeTurn.length + 1) {
       deps.store.loadRawHistory(historyBeforeTurn);
     }
@@ -235,17 +215,11 @@ async function* streamRound(
   const toolCalls: ToolCallEvent[] = [];
   let state = initialState;
   let latestUsage: TokenUsage = ZERO_USAGE;
-  // M2: track whether the stream ever reported usageMetadata. When it doesn't,
-  // `latestUsage` is a zero placeholder — recorded so totals stay consistent,
-  // but flagged so the meter shows "usage unavailable" instead of a false $0.
+  // Track usageMetadata presence so the meter shows unavailable instead of false $0 when absent.
   let sawUsage = false;
   let finishReason = 'STOP';
 
-  // Drive the iterator manually and race each `next()` against the abort signal
-  // and a stall timeout. A plain `for await` only re-checks `signal.aborted`
-  // *between* chunks, so a Stop press (or a stalled network) while suspended
-  // would keep the SDK stream (and cost) running until the next chunk arrives.
-  // On any abnormal exit we call `return()` to tear the HTTP stream down (H1).
+  // Race each next() against abort + stall timeout; for await only checks signal between chunks. Tear down on abnormal exit.
   const timeouts = deps.timeouts ?? DEFAULT_STREAM_TIMEOUTS;
   const iterator = stream[Symbol.asyncIterator]();
   let receivedFirstChunk = false;
@@ -300,9 +274,7 @@ async function* streamRound(
     }
     completedNormally = true;
   } finally {
-    // Abort, stall timeout, or a throw while consuming all land here without
-    // `completedNormally` — tear the SDK stream down so the underlying HTTP
-    // connection doesn't linger (H1).
+    // Abort, stall timeout, or throw: tear down the SDK stream so the HTTP connection does not linger.
     if (!completedNormally) {
       try {
         await iterator.return?.();
@@ -339,11 +311,7 @@ async function* streamRound(
   return { state, toolCalls, finishReason };
 }
 
-// Await the next chunk, but reject immediately if the signal aborts *or* the
-// stream stalls past `timeoutMs`. The SDK iterator's own `next()` won't settle
-// until the network delivers another chunk, so without this a Stop press can't
-// interrupt a slow stream and a silently-dropped connection would hang the turn
-// forever. A timeout surfaces as a typed, retryable NetworkError.
+// Race next() against abort and stall timeout; SDK next() won't settle until another chunk arrives.
 function nextChunkOrAbort(
   iterator: AsyncIterator<GeminiChunk>,
   signal: AbortSignal,
@@ -397,12 +365,7 @@ async function* settleRoundToolCalls(
   deps: AgentLoopDeps,
   now: () => number,
 ): AsyncGenerator<AgentEvent> {
-  // Pre-warm descriptor lazy loads so the UI can render the right component
-  // while the executor is still working. Failures are recorded by the registry
-  // (via `failedNames`) so the template can surface them; we log here (through
-  // the app logger, redacted) to keep a trail for live debugging.
-  // Skip empty names — a nameless call (L1) is settled as a synthetic error and
-  // never touches the registry, so there's nothing to preload.
+  // Pre-warm descriptor lazy loads for UI rendering; skip empty names (nameless calls never touch the registry).
   const uniqueNames = Array.from(new Set(toolCalls.map((c) => c.name))).filter(
     (name) => name.length > 0,
   );
@@ -440,10 +403,7 @@ async function* settleRoundToolCalls(
 
   deps.store.appendToolResponses(
     toolCalls.map((call) => {
-      // Every call is settled by the loop above, but guard the lookup instead of
-      // asserting non-null: if a call somehow never settled (e.g. torn down
-      // mid-abort) we still send the model a well-formed error part rather than
-      // crashing the turn on `undefined.responseForModel` (N4).
+      // Guard lookup: if a call never settled, send a well-formed error part instead of crashing.
       const item = settled.get(call.callId);
       return {
         name: call.name,
@@ -513,9 +473,7 @@ function checkBudgetGuard(deps: AgentLoopDeps): BudgetBreach | null {
   });
 }
 
-// L2: the authoritative count of rounds that actually ran this turn. Sourced
-// from the accountant (one entry per recorded round) rather than the loop
-// index, so budget-exit `turn_complete.rounds` always reflects completed work.
+// Completed rounds from the accountant (not the loop index) so budget-exit turn_complete.rounds reflects actual work.
 function completedRounds(deps: AgentLoopDeps): number {
   return deps.tokenAccountant.currentTurn().rounds.length;
 }

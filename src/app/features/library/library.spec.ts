@@ -24,8 +24,6 @@ describe('LibraryComponent', () => {
   it('renders the empty state when no replays are stored', async () => {
     const fixture = TestBed.createComponent(LibraryComponent);
     await fixture.whenStable();
-    // The component lazily loads — once the replays service settles with an
-    // empty list, the empty-state copy from the template should be visible.
     expect(fixture.nativeElement).toBeDefined();
   });
 
@@ -81,12 +79,10 @@ describe('LibraryComponent', () => {
     };
     const evt = { stopPropagation: () => undefined } as Event;
 
-    // First click arms the confirmation.
     await inst.deleteOne(summary, evt);
     expect(inst.confirmingDelete()).toBe('stuck');
 
-    // Second click commits; the service rejects but the component must still
-    // unwind the confirmation flag and surface the error inline.
+    // Second click commits despite rejection; confirm flag resets and error surfaces inline.
     await inst.deleteOne(summary, evt);
     expect(inst.confirmingDelete()).toBeNull();
     expect(inst.operationError()).toBe(true);

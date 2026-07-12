@@ -21,17 +21,12 @@ export async function settleSingleCall(
   signal: AbortSignal,
   deps: ToolExecutionDeps,
 ): Promise<SettledToolCall> {
-  // Bail before doing any work if the batch was already cancelled (e.g. a
-  // sibling rejected, or the user pressed Stop) so we don't kick off a new
-  // interrupt prompt or side-effecting execution after abort (H1).
+  // Bail if batch already cancelled — avoid new interrupt/execution after abort.
   if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
 
   const events: AgentEvent[] = [];
 
-  // L1: the model emitted a functionCall with no name (see the operator). It
-  // can't resolve to any tool, so short-circuit with a synthetic error instead
-  // of asking the registry to look up an empty name (which would reject with a
-  // noisy "Unknown tool" and still needs a paired functionResponse anyway).
+  // Nameless functionCall: synthetic error instead of registry lookup on empty name.
   if (!call.name) {
     const responseForModel = {
       error: 'The model emitted a tool call without a name; it was skipped.',
@@ -99,10 +94,7 @@ export async function settleSingleCall(
     });
     return { call, events, responseForModel: result };
   } catch (err) {
-    // This error string is sent back to the model *and* shown in the tool card,
-    // so redact it (a tool could surface a key/URL in its message) before it
-    // leaves the executor. Kept as the tool's own message — humanized only by
-    // trimming to the message (never a raw stack).
+    // Error string goes to model and tool card — redact secrets before leaving executor; message only, never stack.
     const raw = err instanceof Error ? err.message : String(err);
     const message = redactString(raw) || 'The tool failed to produce a result.';
     const responseForModel = { error: message } as const;
@@ -123,10 +115,7 @@ export async function* settleToolCallsParallel(
   signal: AbortSignal,
   deps: ToolExecutionDeps,
 ): AsyncGenerator<SettledToolCall> {
-  // Thread a per-batch controller so that when the parent signal aborts — or one
-  // call rejects (e.g. an interrupt decision that aborts) — we can cancel the
-  // in-flight siblings instead of leaving them running (H1). A tool that honors
-  // its `ctx.signal` will stop; ones that don't at least aren't awaited.
+  // Per-batch controller cancels in-flight siblings when parent aborts or a call rejects; tools honoring ctx.signal stop.
   const batch = new AbortController();
   const onParentAbort = () => batch.abort();
   if (signal.aborted) batch.abort();
@@ -145,8 +134,7 @@ export async function* settleToolCallsParallel(
     }
   } catch (err) {
     batch.abort();
-    // Let the cancelled siblings unwind before propagating so their teardown
-    // doesn't surface as an unhandled rejection after we've thrown.
+    // Let cancelled siblings unwind before propagating — avoids unhandled rejections after throw.
     await Promise.allSettled(pending.values());
     throw err;
   } finally {

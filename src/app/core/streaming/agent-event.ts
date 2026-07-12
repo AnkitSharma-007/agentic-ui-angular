@@ -72,8 +72,7 @@ export interface RoundCompleteEvent extends BaseEvent {
     readonly thoughtTokens: number;
     readonly totalTokens: number;
   };
-  // False when the round carried no usageMetadata — `usage` is then a zero
-  // placeholder rather than a real measurement (M2).
+  // False when round had no usageMetadata — `usage` is then a zero placeholder.
   readonly usageAvailable?: boolean;
 }
 

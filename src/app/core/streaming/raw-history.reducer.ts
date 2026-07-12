@@ -5,8 +5,7 @@ export interface HistoryContent {
   readonly parts: readonly GeminiPart[];
 }
 
-// Preserves empty-text parts verbatim — in thinking-only turns Gemini 3
-// hangs the trailing thoughtSignature off the empty-text EOS part.
+// Preserve empty-text parts — Gemini 3 hangs thoughtSignature off the empty-text EOS part in thinking-only turns.
 export function appendChunkToContent(
   chunk: GeminiChunk,
   modelContent: HistoryContent,

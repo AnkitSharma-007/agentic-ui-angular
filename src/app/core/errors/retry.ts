@@ -1,15 +1,8 @@
 import { normalizeError } from './normalize-error';
 import type { AppError } from './app-error';
 
-// Bounded retry with exponential backoff + jitter, used only for *setup*
-// failures (establishing a stream / a one-shot probe) — never mid-stream, where
-// a retry would duplicate already-emitted output and re-bill tokens.
-//
-// The policy is deliberately conservative: only errors classified as
-// `retryable` (transient network / rate-limit) are retried, cancellations are
-// never retried, and the whole thing is abort-aware — a pending backoff sleep
-// rejects immediately when the signal fires so Stop is honored without waiting
-// out the delay.
+// Bounded retry with exponential backoff+jitter for setup failures only — never mid-stream (would duplicate output/re-bill).
+// Conservative: only retryable errors retried, aborts never, signal-aware backoff sleep.
 
 export interface RetryOptions {
   // Aborts both the operation waits and the backoff sleeps.
@@ -20,7 +13,6 @@ export interface RetryOptions {
   readonly maxDelayMs?: number;
   // Override the default "retry only retryable errors" policy.
   readonly shouldRetry?: (error: AppError, attempt: number) => boolean;
-  // Observed before each backoff sleep — handy for logging.
   readonly onRetry?: (error: AppError, attempt: number, delayMs: number) => void;
   // Injectable for deterministic tests.
   readonly sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
@@ -48,8 +40,7 @@ export async function retryWithBackoff<T>(
       const appError = normalizeError(raw);
       const exhausted = attempt >= maxAttempts;
       if (exhausted || appError.isSilent || !shouldRetry(appError, attempt)) {
-        // Re-throw the *original* value so downstream classification/redaction
-        // sees exactly what was thrown (retry is transparent on failure).
+        // Re-throw original value so downstream classification sees exactly what was thrown.
         throw raw;
       }
       const backoff = Math.min(maxDelayMs, baseDelayMs * 2 ** (attempt - 1));

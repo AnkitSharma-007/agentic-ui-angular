@@ -28,9 +28,7 @@ describe('ReplayService', () => {
   let service: ReplayService;
 
   beforeEach(() => {
-    // Fresh in-memory IDB per test — equivalent to a clean profile / private
-    // window, avoiding cross-test pollution without needing to deleteDatabase
-    // (which would deadlock against the service's open connection).
+    // Fresh in-memory IDB per test — avoids cross-test pollution without deleteDatabase deadlocks.
     (globalThis as unknown as { indexedDB: IDBFactory }).indexedDB = new IDBFactory();
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({});
@@ -150,14 +148,10 @@ describe('ReplayService', () => {
   });
 
   it('refresh() flips loaded() to true even when the read fails', async () => {
-    // Force idbGetAll to fail by stubbing the IDB factory to one that throws
-    // when opening a transaction. We do this by saving first (so the DB is
-    // initialised), then poisoning the database with a broken `transaction`.
+    // Save first to initialise the DB, then poison `transaction` so idbGetAll throws.
     await service.save(makePayload({ id: 'one' }));
 
     const fresh = TestBed.inject(ReplayService);
-    // Reach into the private dbPromise to corrupt transactions on a brand-new
-    // instance.
     type Private = { dbPromise: Promise<IDBDatabase> | null };
     const priv = fresh as unknown as Private;
     priv.dbPromise = Promise.resolve({
@@ -174,12 +168,10 @@ describe('ReplayService', () => {
   });
 
   it('refresh() drops stale cached summaries when a subsequent read fails', async () => {
-    // First refresh succeeds and populates the cache.
     await service.save(makePayload({ id: 'cached', title: 'Cached run' }));
     await service.refresh();
     expect(service.summaries()).toHaveLength(1);
 
-    // Poison the next refresh so idbGetAll throws.
     type Private = { dbPromise: Promise<IDBDatabase> | null };
     (service as unknown as Private).dbPromise = Promise.resolve({
       transaction: () => {
@@ -189,9 +181,7 @@ describe('ReplayService', () => {
 
     const result = await service.refresh();
 
-    // The returned array AND the cached signal must agree: empty, so the
-    // Library's `refreshFailed` predicate can fire instead of showing
-    // outdated rows.
+    // Returned array and cached signal must both be empty so `refreshFailed` can fire.
     expect(result).toEqual([]);
     expect(service.summaries()).toEqual([]);
     expect(service.lastError()).not.toBeNull();
@@ -200,9 +190,7 @@ describe('ReplayService', () => {
   it('refresh() drops corrupt/tampered rows so one bad summary cannot crash the list', async () => {
     await service.save(makePayload({ id: 'valid', savedAt: '2026-05-15T08:00:00.000Z' }));
 
-    // Seed a poisoned summary directly (bypassing save()'s typed path). It lacks
-    // required fields, so it must never reach byDateDesc. Open at the service's
-    // current version and mirror both stores so we don't downgrade the DB.
+    // Seed a poisoned summary directly (bypassing save); open at v2 so we do not downgrade the DB.
     const db = await openDb('agentic-ui-angular', 2, (d) => {
       if (!d.objectStoreNames.contains('replays')) {
         d.createObjectStore('replays', { keyPath: 'id' });

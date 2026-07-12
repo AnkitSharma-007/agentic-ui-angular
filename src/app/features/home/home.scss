@@ -879,7 +879,6 @@
   }
 }
 
-/* --- User-turn echo strip (what the user sent this turn) --- */
 .user-turn {
   display: flex;
   flex-direction: column;
@@ -937,7 +936,6 @@
   }
 }
 
-/* --- Composer: drag-and-drop, attachment chips, attach button --- */
 .composer.is-dragging {
   border-color: color-mix(in srgb, var(--mat-sys-primary) 65%, var(--mat-sys-outline));
   box-shadow:
@@ -1077,8 +1075,7 @@
   display: inline-flex;
 }
 
-// Disabled so it can't be clicked, but pointer-events cede hover to the wrapper
-// span so its explanatory title tooltip still shows (L5).
+// pointer-events: none on disabled mic; wrapper span receives hover for tooltip.
 .mic-btn--unsupported {
   pointer-events: none;
 }

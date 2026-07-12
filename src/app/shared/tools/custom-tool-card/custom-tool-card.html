@@ -80,7 +80,6 @@
   </mat-card-content>
 </mat-card>
 
-<!-- Recursive renderer for a response value node (self-referential). -->
 <ng-template #nodeTpl let-node="node">
   @switch (node.kind) {
     @case ('list') {

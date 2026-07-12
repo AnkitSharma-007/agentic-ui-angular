@@ -5,9 +5,7 @@ import { redactError } from './app/core/logging/redact';
 
 bootstrapApplication(App, appConfig).catch((err: unknown) => reportBootstrapFailure(err));
 
-// If bootstrapping throws, Angular never came up — there is no DI, logger, or
-// router to lean on. Log a redacted error and paint a minimal, dependency-free
-// fallback with a reload affordance so the user isn't left on a blank page.
+// Bootstrap failure leaves no DI/logger — log a redacted error and paint a minimal fallback with reload.
 function reportBootstrapFailure(err: unknown): void {
   const safe = redactError(err);
   console.error('[atlas] Application failed to start.', safe);

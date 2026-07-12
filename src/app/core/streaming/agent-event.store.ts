@@ -59,15 +59,11 @@ const EMPTY_TURN: CurrentTurn = {
   finishReason: null,
 };
 
-// Dual-view turn state: `events` (typed AgentEvents for the UI) plus
-// `rawHistory` (Gemini `Content[]` with thoughtSignature blobs preserved).
+// Dual-view turn state: `events` for the UI plus `rawHistory` (Gemini Content[] with thoughtSignature blobs).
 @Service()
 export class AgentEventStore {
-  // Per-turn UI event log. Deliberately a plain mutable array rather than a
-  // signal: nothing renders it reactively (the live view reads `_currentTurn`),
-  // and `save()` is its only consumer, reading it once at end of turn. Appending
-  // to a signal via `[...list, event]` on every streamed delta was O(n²) across
-  // a turn; a plain `push` is O(1) (H5 — intra-turn delta batching).
+  // Per-turn UI event log: plain mutable array (not a signal). Nothing renders it
+  // reactively; `save()` reads it once at end of turn. Signal append was O(n²) per turn; push is O(1).
   private eventLog: AgentEvent[] = [];
   private readonly _rawHistory = signal<readonly HistoryContent[]>([]);
   private readonly _currentTurn = signal<CurrentTurn>(EMPTY_TURN);
@@ -99,8 +95,7 @@ export class AgentEventStore {
     return t.thoughtText.length > 0 || t.responseText.length > 0 || t.toolCalls.length > 0;
   });
 
-  // The most recent user turn (text + media), derived from raw history so it
-  // renders identically for live turns and replays (which reload rawHistory).
+  // Latest user turn from rawHistory — identical for live turns and replays.
   readonly currentUserTurn = computed<UserTurnView>(() => {
     const history = this._rawHistory();
     for (let i = history.length - 1; i >= 0; i--) {
@@ -113,10 +108,7 @@ export class AgentEventStore {
     this._phase.set(phase);
     this._error.set(null);
     this._stats.set({ chunks: 0, parts: 0, signedParts: 0 });
-    // Drop the previous turn's UI events so the log doesn't grow unbounded
-    // across a long session (H5). Only `save()` reads the log, and always for
-    // the current turn; the multi-turn model context lives in `_rawHistory`,
-    // which is deliberately preserved here.
+    // Drop prior turn UI events so the log doesn't grow unbounded; multi-turn context lives in `_rawHistory` (preserved).
     this.eventLog = [];
     this._currentTurn.set({
       id: turnId,
@@ -186,9 +178,7 @@ export class AgentEventStore {
     }
   }
 
-  // Multimodal user turn: a text part (when non-empty) followed by any inline
-  // media parts. `streamRound` sends `rawHistory()` verbatim as the request
-  // contents, so attachments reach the model with no change to the loop.
+  // Multimodal user turn: text part then inline media; `streamRound` sends rawHistory verbatim.
   appendUserTurn(input: UserTurnInput): void {
     const parts: GeminiPart[] = [];
     if (input.text && input.text.length > 0) parts.push({ text: input.text });
@@ -223,10 +213,7 @@ export class AgentEventStore {
       const last = history.at(-1);
       if (!last || last.role !== 'model') {
         const seeded = appendChunkToContent(chunk, { role: 'model', parts: [] });
-        // M3: a candidate-less / parts-less chunk (e.g. a lone finishReason)
-        // arriving before any model content this round would otherwise seed an
-        // empty `{ role: 'model', parts: [] }` entry — which Gemini rejects if
-        // sent back on the next round. Only open a model turn once it has parts.
+        // Parts-less chunk before model content would seed empty model turn Gemini rejects — only open once it has parts.
         return seeded.parts.length === 0 ? history : [...history, seeded];
       }
       const updated = appendChunkToContent(chunk, last);
@@ -273,9 +260,7 @@ function partsToUserTurnView(parts: readonly GeminiPart[]): UserTurnView {
     const inline = (part as Record<string, unknown>)['inlineData'] as
       | { readonly mimeType?: string; readonly data?: string }
       | undefined;
-    // Never build a `data:` URL from an untrusted/stored MIME outside the
-    // display allowlist — a poisoned replay could otherwise smuggle e.g.
-    // `image/svg+xml` or `text/html` into an <img>/anchor. (L12)
+    // Never build data: URL from untrusted MIME outside display allowlist — poisoned replay could smuggle svg/html into img/anchor.
     if (inline?.mimeType && inline.data && isDisplayableAttachmentMime(inline.mimeType)) {
       attachments.push({
         kind: kindFromMime(inline.mimeType),
@@ -341,10 +326,7 @@ function applyInterruptResolution(
   return { ...state, status: 'running', interruptReason: null };
 }
 
-// A tool failure is encoded by the agent loop as exactly `{ error: string }`.
-// We deliberately do NOT classify arbitrary results that happen to carry an
-// `error` field (e.g. a custom tool returning `{ status: 'ok', error: 'none' }`)
-// as failures — that would mis-render successful payloads as red error chips.
+// Tool failure is exactly `{ error: string }`; arbitrary results with an `error` field are not failures.
 function isErrorResult(
   result: Record<string, unknown> | { readonly error: string },
 ): boolean {

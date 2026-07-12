@@ -28,9 +28,7 @@ export interface RoundMetrics {
   readonly completedAt: number;
   readonly latencyMs: number;
   readonly usage: TokenUsage;
-  // False when the round produced no usageMetadata at all — the recorded usage
-  // is a zero placeholder, not a real measurement (M2). Lets the UI say
-  // "usage unavailable" instead of silently showing 0 tokens / $0.
+  // False when usageMetadata was absent — zero is a placeholder, not a real measurement.
   readonly usageAvailable: boolean;
   readonly model: string;
   readonly costUsd: number;

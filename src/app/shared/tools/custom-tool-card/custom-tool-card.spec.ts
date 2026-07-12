@@ -74,12 +74,10 @@ describe('CustomToolCardComponent', () => {
     await fixture.whenStable();
 
     const text = fixture.nativeElement.textContent ?? '';
-    // Title surfaced as a heading, fields as key/value rows.
     expect(text).toContain('Vinayak Family Restaurant');
     expect(text).toContain('cuisine');
     expect(text).toContain('Goan Seafood');
     expect(text).toContain('Gunpowder');
-    // Raw JSON is hidden behind a toggle, not shown by default.
     expect(text).toContain('Show raw JSON');
     expect(fixture.nativeElement.querySelector('pre.response')).toBeNull();
   });
@@ -123,13 +121,11 @@ describe('CustomToolCardComponent', () => {
     await fixture.whenStable();
 
     const text = fixture.nativeElement.textContent ?? '';
-    // Top-level scalar + nested list items are all humanised.
     expect(text).toContain('city');
     expect(text).toContain('spots');
     expect(text).toContain('Bean Me Up');
     expect(text).toContain('Tofu Scramble');
     expect(text).toContain('Zest Café');
-    // The nested array must NOT be dumped as a raw JSON blob by default.
     expect(text).not.toContain('{"name"');
     expect(fixture.nativeElement.querySelector('pre.response')).toBeNull();
   });

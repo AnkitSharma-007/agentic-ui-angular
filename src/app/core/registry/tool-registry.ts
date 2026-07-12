@@ -15,9 +15,7 @@ export class ToolRegistry {
   private readonly _loadedNames = signal<readonly string[]>([]);
   private readonly _failedNames = signal<readonly string[]>([]);
 
-  // L15: `list()`/`declarations()` are read once per agent round to build the
-  // tool payload. Cache the derived arrays and invalidate only when the manifest
-  // set changes, so a multi-round turn doesn't re-spread the Map every round.
+  // Cache list()/declarations() arrays; invalidated when manifest set changes (read once per agent round).
   private listCache: readonly ToolMeta[] | null = null;
   private declarationsCache: readonly FunctionDeclaration[] | null = null;
 

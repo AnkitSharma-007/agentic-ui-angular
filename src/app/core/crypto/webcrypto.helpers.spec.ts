@@ -41,7 +41,6 @@ describe('webcrypto.helpers', () => {
     expect(a.iv).not.toBe(b.iv);
     expect(a.ciphertext).not.toBe(b.ciphertext);
 
-    // Both should still decrypt back to the same plaintext.
     expect(await decryptString(a, 'same passphrase')).toBe('same plaintext');
     expect(await decryptString(b, 'same passphrase')).toBe('same plaintext');
   });
@@ -103,9 +102,7 @@ describe('webcrypto.helpers — session KEK', () => {
 });
 
 function corruptBase64(b64: string): string {
-  // Flip the first base64 character to a known different one. We pick a
-  // character that's still valid base64 so the decode step succeeds and the
-  // failure originates from the AES-GCM auth tag mismatch.
+  // Flip one base64 char so decode succeeds but AES-GCM auth-tag verification fails.
   const head = b64[0] === 'A' ? 'B' : 'A';
   return head + b64.slice(1);
 }

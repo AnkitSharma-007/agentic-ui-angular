@@ -30,8 +30,7 @@ export type { GeminiModelId };
 
 type ThinkingLevel = 'minimal' | 'low' | 'medium' | 'high';
 
-// The SDK's ThinkingLevel enum members hold the same lowercase string values;
-// hard-coding them lets us keep @google/genai out of the initial bundle.
+// Hard-coded map keeps @google/genai out of the initial bundle (SDK enum uses the same lowercase strings).
 const THINKING_LEVEL_MAP: Record<ThinkingLevel, SdkThinkingLevel> = {
   minimal: 'minimal' as SdkThinkingLevel,
   low: 'low' as SdkThinkingLevel,
@@ -93,8 +92,7 @@ export class GeminiService {
     const { GoogleGenAI: GenAI } = await loadSdk();
     const ai = new GenAI({ apiKey: trimmed });
     try {
-      // Setup-only retry: the probe is a one-shot with no partial output to
-      // duplicate, so a transient blip shouldn't fail the connection test.
+      // Setup-only retry: one-shot probe with no partial output to duplicate.
       const stream = await retryWithBackoff(
         () =>
           ai.models.generateContentStream({
@@ -107,7 +105,7 @@ export class GeminiService {
             this.logRetry('testConnection', error, attempt, delayMs),
         },
       );
-      // Drain the iterator so the underlying HTTP connection closes cleanly.
+      // Drain iterator so the HTTP connection closes cleanly.
       for await (const _chunk of stream) {
         void _chunk;
       }
@@ -126,8 +124,7 @@ export class GeminiService {
     return new Observable<AgentEvent>((subscriber) => {
       const abort = new AbortController();
       const externalSignal = options.signal;
-      // Held in a named ref so teardown can removeEventListener — otherwise a
-      // long-lived caller signal leaks one listener per subscription.
+      // Named ref so teardown can removeEventListener — avoids leaking one listener per subscription.
       let onExternalAbort: (() => void) | null = null;
       if (externalSignal) {
         if (externalSignal.aborted) {
@@ -149,8 +146,7 @@ export class GeminiService {
 
           for await (const event of runAgentTurn(input, turnId, loopOptions, abort.signal, deps)) {
             if (abort.signal.aborted) {
-              // External abort between iterations — always terminate the
-              // subscriber so callers don't sit on an open Observable.
+              // External abort between iterations — complete subscriber so Observable does not hang.
               subscriber.complete();
               return;
             }
@@ -176,9 +172,7 @@ export class GeminiService {
     return {
       streamChunks: async (req: StreamRoundRequest) => {
         try {
-          // Setup-only retry: this wraps *establishing* the stream, before any
-          // chunk is consumed. Retrying here can't duplicate emitted output or
-          // re-bill a partially-streamed round; mid-stream failures still throw.
+          // Setup-only retry: wraps stream establishment before any chunk is consumed.
           const stream = await retryWithBackoff(
             () =>
               ai.models.generateContentStream({
@@ -198,8 +192,7 @@ export class GeminiService {
           );
           return stream as AsyncIterable<GeminiChunk>;
         } catch (err) {
-          // Normalize at the SDK boundary and stamp the turn id so every layer
-          // above (loop, Observable, home) sees a typed, correlated error.
+          // Normalize at the SDK boundary and stamp turn id for correlated errors upstream.
           throw normalizeError(err, { op: 'streamChunks', model: req.model }).enrich({
             correlationId: turnId,
           });

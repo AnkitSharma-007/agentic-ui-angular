@@ -30,8 +30,7 @@ export const handoffToDescriptor: ToolDescriptor<HandoffArgs, HandoffResult> = {
   argsSchema,
   component: HandoffNoticeComponent,
   async execute(args) {
-    // Don't claim success for a specialist that doesn't exist — the registry
-    // would no-op the switch, leaving the model believing it handed off (H2).
+    // Unknown specialist would no-op in the registry while the model believes it handed off.
     if (!isKnownAgentId(args.specialist)) {
       const known = [...KNOWN_AGENT_IDS].join(', ');
       return { error: `Unknown specialist "${args.specialist}". Available specialists: ${known}.` };

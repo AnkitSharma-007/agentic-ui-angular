@@ -1,8 +1,4 @@
-// Persists the session-tier KEK (a non-extractable AES-GCM CryptoKey) in
-// IndexedDB. Storing the CryptoKey *object* — not its bytes — lets the key
-// survive a reload while remaining impossible to read out: WebCrypto only ever
-// hands back an opaque handle. The matching ciphertext lives in sessionStorage,
-// so both halves are needed to recover the API key.
+// Persists the session-tier KEK as an opaque CryptoKey handle in IndexedDB; ciphertext lives in sessionStorage.
 
 import { idbDelete, idbGet, idbPut, openDb } from '../storage/indexeddb.helpers';
 

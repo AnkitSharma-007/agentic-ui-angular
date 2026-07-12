@@ -25,7 +25,7 @@ describe('HomeComponent.save() — turn scoping', () => {
     const store = TestBed.inject(AgentEventStore);
     const replays = TestBed.inject(ReplayService);
 
-    // Turn 1 — older events that must NOT make it into the saved payload.
+    // Turn 1 events must not appear in the saved payload.
     store.beginTurn('turn-1');
     const oldEvents: AgentEvent[] = [
       { type: 'turn_start', ts: 100, turnId: 'turn-1' },
@@ -34,7 +34,7 @@ describe('HomeComponent.save() — turn scoping', () => {
     ];
     for (const ev of oldEvents) store.pushEvent(ev);
 
-    // Turn 2 — the "current" turn the user just finished and clicked Save on.
+    // Turn 2 is the current turn being saved.
     store.beginTurn('turn-2');
     const newEvents: AgentEvent[] = [
       { type: 'turn_start', ts: 200, turnId: 'turn-2' },
@@ -43,8 +43,7 @@ describe('HomeComponent.save() — turn scoping', () => {
     ];
     for (const ev of newEvents) store.pushEvent(ev);
 
-    // RawHistory accumulates across turns; only the slice from the latest
-    // user message onwards should be persisted.
+    // Persist rawHistory from the latest user message only.
     const fullHistory: readonly HistoryContent[] = [
       { role: 'user', parts: [{ text: 'first prompt' }] },
       { role: 'model', parts: [{ text: 'first response' }] },

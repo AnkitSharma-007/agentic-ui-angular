@@ -12,8 +12,7 @@ import {
 import * as L from 'leaflet';
 import type { Waypoint, WaypointKind } from './itinerary-map.types';
 
-// `ViewEncapsulation.None` is required because Leaflet's bundled CSS uses
-// global selectors. The leak is bounded — this component is lazy-loaded.
+// `ViewEncapsulation.None` required: Leaflet CSS uses global selectors (bounded leak — component is lazy-loaded).
 @Component({
   selector: 'app-map-canvas',
   template: `<div #host class="map-host" role="img" [attr.aria-label]="ariaLabel()"></div>`,
@@ -93,8 +92,7 @@ export class MapCanvasComponent implements AfterViewInit, OnDestroy {
     const bounds = L.latLngBounds(waypoints.map((w) => [w.lat, w.lng] as [number, number]));
     this.map.fitBounds(bounds, { padding: [28, 28], maxZoom: 13 });
 
-    // The host element may have measured zero-height when @defer revealed
-    // it; one invalidateSize on the next frame avoids a layout jank.
+    // @defer may reveal the host at zero height; one invalidateSize on the next frame avoids jank.
     requestAnimationFrame(() => this.map?.invalidateSize());
   }
 }

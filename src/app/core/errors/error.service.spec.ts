@@ -45,8 +45,8 @@ describe('ErrorService', () => {
     service.handle(new Error('Failed to fetch'));
     service.handle(Object.assign(new Error('bad'), { name: 'ZodError', issues: [] }));
 
-    expect(sink.entries[0].level).toBe('error'); // network
-    expect(sink.entries[1].level).toBe('warn'); // validation
+    expect(sink.entries[0].level).toBe('error');
+    expect(sink.entries[1].level).toBe('warn');
   });
 
   it('logs aborts quietly at debug and marks them silent', () => {

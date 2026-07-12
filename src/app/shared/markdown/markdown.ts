@@ -19,9 +19,7 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;');
 }
 
-// Only schemes that can't execute script. URLs with no scheme (relative,
-// anchors, protocol-relative) pass through; a scheme not in this set (e.g.
-// javascript:, data:, vbscript:) makes the link unsafe.
+// Allow only non-script schemes; relative/anchor URLs pass, others (javascript:, data:) are unsafe.
 const SAFE_LINK_SCHEMES = new Set(['http', 'https', 'mailto', 'tel']);
 function safeHref(raw: string): string | null {
   const href = raw.trim();
@@ -30,10 +28,7 @@ function safeHref(raw: string): string | null {
   return href;
 }
 
-// Defence-in-depth: model output is fully attacker-influenceable, so we don't
-// rely on Angular's [innerHTML] DomSanitizer alone. marked is configured to
-// render raw HTML as inert escaped text (never parsed) and to drop links with
-// an unsafe scheme, adding rel="noopener noreferrer" + target to the rest.
+// Defence-in-depth on attacker-influenceable model output: escape raw HTML, drop unsafe links, harden safe ones.
 const renderer = new Marked({
   gfm: true,
   breaks: true,
@@ -51,8 +46,7 @@ const renderer = new Marked({
   },
 });
 
-// Exported so the hardening can be unit-tested against marked's raw output,
-// before Angular's sanitizer runs on the bound [innerHTML].
+// Exported for unit tests against marked output before Angular's [innerHTML] sanitizer.
 export function renderMarkdown(source: string): string {
   return renderer.parse(source, { async: false }) as string;
 }
@@ -66,8 +60,7 @@ export function renderMarkdown(source: string): string {
 export class MarkdownComponent {
   readonly source = input.required<string>();
 
-  // rAF-coalesced commit of `source` so a streaming response doesn't re-parse
-  // the entire cumulative buffer on every token (O(n²) → ~60Hz).
+  // rAF-coalesced source commits avoid O(n²) re-parsing on every streaming token.
   private readonly throttledSource = signal<string>('');
   protected readonly rendered = computed<string>(() => renderMarkdown(this.throttledSource()));
 

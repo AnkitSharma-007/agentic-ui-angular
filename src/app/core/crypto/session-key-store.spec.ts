@@ -20,7 +20,6 @@ describe('session-key-store', () => {
     const restored = await getSessionKek();
     expect(restored).toBeInstanceOf(CryptoKey);
     expect(restored!.extractable).toBe(false);
-    // The restored handle still decrypts the ciphertext produced by the original.
     expect(await decryptWithKey(restored!, envelope)).toBe('sk-persisted');
   });
 
@@ -30,8 +29,7 @@ describe('session-key-store', () => {
     const second = await generateSessionKek();
     await putSessionKek(second);
 
-    // The stored key must be the newer one: ciphertext from `first` no longer
-    // decrypts under it.
+    // Ciphertext from `first` no longer decrypts under the overwritten KEK.
     const envelopeFromFirst = await encryptWithKey(first, 'x');
     await expect(decryptWithKey((await getSessionKek())!, envelopeFromFirst)).rejects.toThrow();
   });

@@ -66,8 +66,6 @@ export class OnboardingComponent {
 
   readonly ready = output<void>();
 
-  // Signal Forms model — the single source of truth the schema validates and the
-  // template binds to via `[formField]`.
   protected readonly model = signal<OnboardingForm>({
     key: '',
     remember: false,
@@ -75,7 +73,6 @@ export class OnboardingComponent {
     passphraseConfirm: '',
   });
 
-  // Passphrase validators only apply when the user opts into persistent storage.
   protected readonly f = form(this.model, (p) => {
     required(p.key, { message: 'Paste your Gemini API key.' });
     required(p.passphrase, {
@@ -86,8 +83,7 @@ export class OnboardingComponent {
       message: `Use at least ${MIN_PASSPHRASE_LENGTH} characters.`,
       when: () => this.model().remember,
     });
-    // Block obviously-guessable passphrases outright — the encrypted blob is
-    // portable, so a weak passphrase is the whole ballgame for offline guessing.
+    // Reject guessable passphrases — the portable encrypted blob is only as strong as this secret.
     validate(p.passphrase, ({ value }) => {
       if (!this.model().remember) return null;
       return isCommonPassphrase(value())
@@ -99,9 +95,7 @@ export class OnboardingComponent {
   protected readonly status = signal<Status>({ kind: 'idle' });
   protected readonly showPassphrase = signal(false);
 
-  // The exact key value that last passed `testConnection`. Comparing it against
-  // the current input means editing the key after a successful test invalidates
-  // the "verified" state, so the user must re-test before Save re-enables (H7).
+  // Key value that last passed testConnection; editing after verify invalidates Save until re-tested.
   private readonly testedKey = signal<string | null>(null);
 
   protected readonly connectionVerified = computed(() => {
@@ -109,7 +103,7 @@ export class OnboardingComponent {
     return tested !== null && tested === this.model().key.trim();
   });
 
-  // Strength meter for the persistence passphrase (M8). Advisory UX only.
+  // Passphrase strength meter — advisory UX only.
   protected readonly passphraseStrength = computed(() =>
     scorePassphrase(this.model().passphrase),
   );
@@ -118,8 +112,7 @@ export class OnboardingComponent {
     this.apiKey.hasLockedBlob() ? 'unlock' : 'setup',
   );
 
-  // Cross-field check kept as a computed (rather than a schema validator) so it can
-  // drive both the inline error and the save gate without a targeted-error dance.
+  // Cross-field passphrase match as computed so it drives inline error and save gate together.
   protected readonly passphraseMismatch = computed(() => {
     const m = this.model();
     return (
@@ -138,7 +131,7 @@ export class OnboardingComponent {
   protected readonly canSave = computed(() => {
     const s = this.status();
     if (s.kind === 'saving' || s.kind === 'testing' || s.kind === 'unlocking') return false;
-    // H7: never persist a key we haven't confirmed works against the live API.
+    // Never persist a key that hasn't passed a live connection test.
     if (!this.connectionVerified()) return false;
     if (this.f().invalid()) return false;
     if (this.passphraseMismatch()) return false;
@@ -177,8 +170,7 @@ export class OnboardingComponent {
     const { key: rawKey, remember, passphrase } = this.model();
     const key = rawKey.trim();
     if (!key) return;
-    // H7 defense-in-depth: the button is disabled when unverified, but never
-    // persist a key that hasn't passed a live connection test.
+    // Defense-in-depth: never persist an unverified key even if the button were enabled.
     if (!this.connectionVerified()) return;
     this.status.set({ kind: 'saving' });
     try {
@@ -209,7 +201,7 @@ export class OnboardingComponent {
     }
   }
 
-  // Two-step inline confirm instead of a native confirm() dialog (M12).
+  // Two-step inline confirm instead of native confirm().
   protected readonly confirmingForget = signal(false);
 
   protected forgetSavedKey(): void {

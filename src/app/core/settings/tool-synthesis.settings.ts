@@ -2,10 +2,7 @@ import { Service, signal } from '@angular/core';
 
 const STORAGE_KEY = 'atlas:tool-synthesis';
 
-// Feature flag for agent tool synthesis (the `proposeTool` capability).
-// Defaults ON for demo builds — documented as opt-out — and persists to
-// localStorage, mirroring BudgetService. The agent loop reads `enabled()` to
-// decide whether to offer `proposeTool` to the model.
+// Feature flag for `proposeTool` — defaults ON for demos, persists to localStorage like BudgetService.
 @Service()
 export class ToolSynthesisSettings {
   private readonly _enabled = signal<boolean>(loadStored());

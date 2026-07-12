@@ -21,9 +21,7 @@ import type {
 import type { ReplayPayload } from '../../core/replay/replay.types';
 import type { ToolManifest } from '../../core/registry/tool-descriptor';
 
-// Minimal in-memory tool that the registry can register and "load". The
-// component class isn't a real Angular component — it just needs to be a
-// non-null reference so `componentFor` returns truthy after loading.
+// Mock tool reference so componentFor is truthy after load — not a real Angular component.
 function makeMockTool(name: string): {
   manifest: ToolManifest;
   loadSpy: ReturnType<typeof vi.fn>;
@@ -209,8 +207,7 @@ describe('HomeComponent replay flow', () => {
     );
 
     await instance.loadAndReplay('r4');
-    // Saved events span ~60ms of timeline; play() emits with real timers, so
-    // give it a short real wait to drain to turn_complete.
+    // play() uses real timers over a ~60ms timeline; wait briefly for turn_complete.
     await new Promise((r) => setTimeout(r, 200));
 
     expect(switchSpy).toHaveBeenCalled();
@@ -277,7 +274,7 @@ describe('HomeComponent replay flow', () => {
     };
     await fixture.whenStable();
 
-    // Nothing saved under this id → load() resolves null → recovery banner state.
+    // load() resolves null when nothing is saved under this id.
     await instance.loadAndReplay('does-not-exist');
 
     expect(instance.replayLoadError()).toBeTruthy();
@@ -296,11 +293,10 @@ describe('HomeComponent replay flow', () => {
     };
     await fixture.whenStable();
 
-    // First load fails → the registry flags it as failed.
     await expect(registry.loadImpl('flakyTool')).rejects.toThrow('network blip');
     expect(registry.hasFailed('flakyTool')).toBe(true);
 
-    // Retry now succeeds → failed flag clears and the component resolves.
+    // Retry after rejection clears failedNames.
     instance.retryToolLoad('flakyTool');
     await vi.waitFor(() => expect(registry.hasFailed('flakyTool')).toBe(false));
     expect(registry.componentFor('flakyTool')).not.toBeNull();

@@ -43,7 +43,6 @@ describe('parseReplayPayload / isValidReplayPayload (C2)', () => {
     });
     const parsed = parseReplayPayload(payload);
     expect(parsed).not.toBeNull();
-    // Same reference back — the original object with all fields intact.
     expect(parsed).toBe(payload);
     expect((parsed!.events[0] as unknown as { name: string }).name).toBe('searchFlights');
   });

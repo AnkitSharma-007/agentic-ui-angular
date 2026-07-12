@@ -39,8 +39,7 @@ describe('ObservabilityDrawerComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    // Stand in for whichever element triggered the drawer (e.g. the cost-meter
-    // pill). It must be in the DOM and focusable so .focus() works in jsdom.
+    // Focusable trigger stand-in for jsdom focus-restore test.
     const trigger = document.createElement('button');
     trigger.textContent = 'open dashboard';
     document.body.appendChild(trigger);

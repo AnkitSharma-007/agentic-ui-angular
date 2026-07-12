@@ -421,10 +421,7 @@
                 <span class="mic-status" role="status" aria-live="polite">Listening…</span>
               }
             } @else {
-              <!-- L5: keep voice discoverable on browsers that lack the Web Speech
-                   API — show a disabled mic with an explanatory tooltip instead of
-                   hiding it entirely. The wrapper carries the title so it still
-                   appears on hover over the disabled button. -->
+              <!-- Disabled mic on browsers without Web Speech API — wrapper carries tooltip on hover. -->
               <span
                 class="mic-unsupported"
                 title="Voice input isn't supported in this browser — try Chrome or Edge."

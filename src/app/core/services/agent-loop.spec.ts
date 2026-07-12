@@ -20,10 +20,6 @@ import { AgentRegistry } from '../agents/agent-registry.service';
 import { HANDOFF_TOOL_NAME } from '../../shared/tools/handoff-tool/handoff-tool.manifest';
 import { z } from 'zod';
 
-// ---------------------------------------------------------------------------
-// Fixtures
-// ---------------------------------------------------------------------------
-
 function textChunk(text: string): GeminiChunk {
   return {
     candidates: [{ content: { role: 'model', parts: [{ text }] } }],
@@ -78,8 +74,7 @@ interface ToolDef {
   readonly execute: (args: unknown) => unknown | Promise<unknown>;
 }
 
-// Minimal in-memory tool registry. Avoids dragging the eager manifests + their
-// lazy-loaded descriptors into agent-loop tests.
+// Minimal in-memory registry — avoids eager manifests and lazy-loaded descriptors.
 function makeRegistry(
   tools: readonly ToolDef[],
 ): Pick<ToolRegistry, 'get' | 'execute' | 'loadImpl' | 'declarations'> {
@@ -177,10 +172,6 @@ async function drain(iter: AsyncIterable<AgentEvent>, signal?: AbortSignal): Pro
 }
 
 const NOOP_OPTIONS = { model: 'gemini-3-test', thinkingConfig: { thinkingLevel: 'minimal' } };
-
-// ---------------------------------------------------------------------------
-// Specs
-// ---------------------------------------------------------------------------
 
 describe('runAgentTurn — happy path (text only)', () => {
   afterEach(() => TestBed.resetTestingModule());
@@ -439,7 +430,6 @@ describe('runAgentTurn — interrupts', () => {
       runAgentTurn('Book it', 't1', NOOP_OPTIONS, new AbortController().signal, h.deps),
     );
 
-    // Resolve the interrupt asynchronously so the loop can progress.
     await vi.waitFor(() => expect(h.interrupts.hasPending()).toBe(true));
     const callId = h.interrupts.pendingIds()[0];
     h.interrupts.decide(callId, { kind: 'approve' });
@@ -476,9 +466,7 @@ describe('runAgentTurn — budget guard', () => {
     const h = makeHarness({
       tools,
       responses: [
-        // Round 0: a tool call (will get a usage record so roundsUsed becomes 1)
         [toolChunk('searchFlights', {}), finishChunk('STOP')],
-        // Round 1 should never start because the budget check trips first.
       ],
     });
     h.budget.update({ maxRounds: 1 });
@@ -532,9 +520,7 @@ describe('runAgentTurn — budget guard', () => {
         execute,
       },
     ];
-    // A single round that requests a tool call *and* blows the token cap. Only
-    // one response is provided: if the loop tried to settle + start a second
-    // round it would throw "called more times than responses provided".
+    // One tool-call round that also blows the token cap; only one response scripted.
     const h = makeHarness({
       tools,
       responses: [[toolChunk('searchFlights', {}), finishChunk('STOP', { totalTokenCount: 9999 })]],
@@ -547,8 +533,7 @@ describe('runAgentTurn — budget guard', () => {
 
     const turnComplete = events.at(-1) as Extract<AgentEvent, { type: 'turn_complete' }>;
     expect(turnComplete.finishReason).toBe('BUDGET_EXCEEDED:tokens');
-    // The overshooting round's tool call is NOT settled — we bail before doing
-    // more work — and the completed-round count reflects the one round that ran.
+    // Overshooting round's tool call is not settled; completed-round count is 1.
     expect(execute).not.toHaveBeenCalled();
     expect(turnComplete.rounds).toBe(1);
     expect(h.streamChunks).toHaveBeenCalledTimes(1);
@@ -570,7 +555,6 @@ describe('runAgentTurn — max rounds termination', () => {
         execute: () => ({ ok: true }),
       },
     ];
-    // 8 rounds, every one returns another tool call. Loop should bail out.
     const oneRound = () => [toolChunk('searchFlights', {}), finishChunk('STOP')];
     const h = makeHarness({
       tools,
@@ -639,8 +623,7 @@ describe('runAgentTurn — handoff', () => {
           declaration: decl(HANDOFF_TOOL_NAME),
           interruptive: false,
         },
-        // The real descriptor returns an { error } for unknown ids; the loop
-        // itself must also refuse to switch (switchActive no-ops).
+        // Real descriptor returns { error } for unknown ids; loop must also refuse to switch.
         execute: () => ({ error: 'Unknown specialist "ghost".' }),
       },
     ];
@@ -673,7 +656,7 @@ describe('runAgentTurn — abort', () => {
       responses: [
         [
           {
-            // Chunk that aborts the signal as part of consuming it.
+            // Aborts the signal as the chunk is consumed.
             get candidates() {
               controller.abort();
               return [{ content: { role: 'model' as const, parts: [{ text: 'partial' }] } }];
@@ -694,8 +677,7 @@ describe('runAgentTurn — abort', () => {
     const returnSpy = vi.fn(
       async (): Promise<IteratorResult<GeminiChunk>> => ({ value: undefined, done: true }),
     );
-    // A stream whose next() never settles — simulates a stalled network read
-    // the user wants to abandon via Stop.
+    // next() never settles — simulates a stalled network read abandoned via Stop.
     const stalledStream: AsyncIterable<GeminiChunk> = {
       [Symbol.asyncIterator]() {
         return {
@@ -721,8 +703,7 @@ describe('runAgentTurn — abort', () => {
     const first = await gen.next();
     expect((first.value as AgentEvent).type).toBe('turn_start');
 
-    // This pull suspends on the stalled stream; aborting must reject it rather
-    // than hang until the (never-arriving) next chunk.
+    // Suspended on stalled stream; abort must reject rather than hang.
     const suspended = gen.next();
     controller.abort();
     await expect(suspended).rejects.toThrow(/Abort/);
@@ -737,8 +718,7 @@ describe('runAgentTurn — stall timeout', () => {
     const returnSpy = vi.fn(
       async (): Promise<IteratorResult<GeminiChunk>> => ({ value: undefined, done: true }),
     );
-    // A stream whose first `next()` never settles — a silently-dropped
-    // connection that would otherwise hang the turn forever.
+    // First next() never settles — silently-dropped connection.
     const stalledStream: AsyncIterable<GeminiChunk> = {
       [Symbol.asyncIterator]() {
         return {
@@ -821,10 +801,8 @@ describe('runAgentTurn — error propagation', () => {
       // expected
     }
 
-    // turn_start still fires (the UI shows the turn began)…
     expect(events[0]?.type).toBe('turn_start');
-    // …but because no model output was committed, the just-appended user turn is
-    // rolled back so a retry doesn't duplicate the message.
+    // No model output committed — orphaned user turn rolled back.
     expect(store.rawHistory()).toEqual([]);
   });
 
@@ -832,9 +810,7 @@ describe('runAgentTurn — error propagation', () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({});
     const store = TestBed.inject(AgentEventStore);
-    // Seed a prior successful exchange so we can prove only *this* failed turn's
-    // orphaned user entry would be affected — here nothing rolls back because a
-    // model chunk was committed before the failure.
+    // Prior exchange seeded — model chunk committed before failure, so nothing rolls back.
     async function* oneChunkThenThrow(): AsyncIterable<GeminiChunk> {
       yield textChunk('partial');
       throw new Error('mid-stream boom');
@@ -863,7 +839,6 @@ describe('runAgentTurn — error propagation', () => {
       // expected
     }
 
-    // user + partial model content both remain (length 2 > before+1).
     expect(store.rawHistory().map((h) => h.role)).toEqual(['user', 'model']);
   });
 });
@@ -912,7 +887,7 @@ describe('runAgentTurn — agent-aware declarations', () => {
     const req = h.streamChunks.mock.calls[0][0] as StreamRoundRequest;
     const passed = req.config.tools?.[0].functionDeclarations as readonly { name: string }[];
     const names = passed.map((d) => d.name).sort();
-    // tripPlanner gets its own tools + handoff; should NOT include findActivities.
+    // tripPlanner: own tools + handoff, not findActivities.
     expect(names).toContain('searchFlights');
     expect(names).toContain(HANDOFF_TOOL_NAME);
     expect(names).not.toContain('findActivities');
@@ -1023,7 +998,6 @@ describe('runAgentTurn — tool synthesis gating', () => {
   });
 
   it('stops offering proposeTool once the per-turn cap is reached', async () => {
-    // One proposal per round until the cap; a final text-only round ends the turn.
     const proposalRound = () => [toolChunk(PROPOSE_TOOL_NAME, { name: 'x' }), finishChunk('STOP')];
     const responses = [
       ...Array.from({ length: MAX_TOOL_SYNTHESIS_PER_TURN }, proposalRound),
@@ -1039,11 +1013,9 @@ describe('runAgentTurn — tool synthesis gating', () => {
       runAgentTurn('Make tools', 't1', NOOP_OPTIONS, new AbortController().signal, h.deps),
     );
 
-    // Every round up to the cap offers proposeTool…
     for (let round = 0; round < MAX_TOOL_SYNTHESIS_PER_TURN; round++) {
       expect(declaredNames(h, round)).toContain(PROPOSE_TOOL_NAME);
     }
-    // …but the round after the cap no longer does.
     expect(declaredNames(h, MAX_TOOL_SYNTHESIS_PER_TURN)).not.toContain(PROPOSE_TOOL_NAME);
   });
 });

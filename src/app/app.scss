@@ -23,8 +23,7 @@
   }
 }
 
-// Last-resort banner for otherwise-uncaught errors. Non-blocking: it sits below
-// the header so the user can still navigate away or reload.
+// Last-resort uncaught-error banner; non-blocking, sits below header so user can still navigate.
 .app-error-boundary {
   display: flex;
   align-items: center;

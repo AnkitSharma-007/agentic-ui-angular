@@ -1,11 +1,6 @@
-// Pure passphrase-strength scoring used by the onboarding meter. Kept framework-
-// free and side-effect-free so it is trivially unit-testable. This is a UX
-// signal (encourage a strong passphrase), not a security control — the real
-// protection is AES-GCM + PBKDF2 in webcrypto.helpers.ts.
+// UX-only passphrase scoring for the onboarding meter; real protection is AES-GCM + PBKDF2.
 
-// Minimum length enforced by the onboarding form. Offline-guessing resistance of
-// the encrypted key blob scales with passphrase entropy, so we require a
-// meaningfully long passphrase rather than the old 6-char floor.
+// Minimum onboarding length — offline-guessing resistance scales with passphrase entropy.
 export const MIN_PASSPHRASE_LENGTH = 12;
 
 export type PassphraseScore = 0 | 1 | 2 | 3 | 4;
@@ -13,17 +8,13 @@ export type PassphraseScore = 0 | 1 | 2 | 3 | 4;
 export interface PassphraseStrength {
   readonly score: PassphraseScore;
   readonly label: string;
-  // 0–100, for a progress-bar style meter.
   readonly percent: number;
-  // Non-blocking guidance shown under the meter, or null when it is strong.
   readonly hint: string | null;
-  // True when the passphrase matches a well-known weak value; surfaced as a
-  // stronger warning regardless of length.
+  // True for well-known weak passphrases — surfaced as a stronger warning regardless of length.
   readonly isCommon: boolean;
 }
 
-// A short blocklist of the most common weak passphrases. Not exhaustive — just
-// enough to nudge users off the obvious ones in a demo/open-source context.
+// Short blocklist of common weak passphrases for demo/open-source nudging.
 const COMMON_PASSPHRASES = new Set(
   [
     'password',

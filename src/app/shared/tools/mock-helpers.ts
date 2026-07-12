@@ -1,7 +1,4 @@
-/**
- * Helpers shared by the mock tool executors. They keep demo executors small
- * and ensure all of them respect the abort signal the agent loop passes in.
- */
+/** Shared mock-executor helpers; all respect the abort signal from the agent loop. */
 
 export function wait(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {

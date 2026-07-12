@@ -45,7 +45,6 @@ describe('replaySizeError', () => {
     const history: readonly HistoryContent[] = [
       { role: 'user', parts: [{ inlineData: { mimeType: 'image/jpeg', data: soft } }] },
     ];
-    // Over the soft warn cap but well under the hard cap → still saveable.
     expect(replaySizeWarning(history)).not.toBeNull();
     expect(replaySizeError(history)).toBeNull();
   });

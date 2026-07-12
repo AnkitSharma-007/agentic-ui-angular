@@ -32,8 +32,7 @@ export class ActivityListComponent {
   readonly callId = input<string>('');
   readonly args = input<Record<string, unknown>>({});
   readonly result = input<FindActivitiesResult | null>(null);
-  // Full ToolCallStatus so pending/rejected states match the other cards if
-  // this tool ever becomes interruptive.
+  // Full ToolCallStatus for parity if this tool becomes interruptive.
   readonly status = input<ToolCallStatus>('running');
   readonly errorMessage = input<string | null>(null);
   readonly interruptReason = input<string | null>(null);

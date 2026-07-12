@@ -56,9 +56,7 @@ describe('HandoffNoticeComponent', () => {
 
   it('accepts the full tool-render inputs contract from HomeComponent.inputsFor()', async () => {
     const fixture = TestBed.createComponent(HandoffNoticeComponent);
-    // `inputsFor()` in home.ts sends this exact shape to every tool component
-    // via NgComponentOutlet. Each key MUST resolve to a declared input or
-    // setInput throws at runtime.
+    // Full inputsFor() shape — each key must map to a declared input or setInput throws.
     expect(() => {
       fixture.componentRef.setInput('callId', 'c1');
       fixture.componentRef.setInput('args', { specialist: 'experienceCurator' });

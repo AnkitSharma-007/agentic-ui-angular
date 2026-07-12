@@ -13,10 +13,6 @@ import { AgentRegistry } from '../agents/agent-registry.service';
 import { CustomToolsService } from '../custom-tools/custom-tools.service';
 import { proposeToolManifest } from '../../shared/tools/propose-tool/propose-tool.manifest';
 
-// ---------------------------------------------------------------------------
-// Fixtures (mirrors agent-loop.spec.ts helpers)
-// ---------------------------------------------------------------------------
-
 function textChunk(text: string): GeminiChunk {
   return { candidates: [{ content: { role: 'model', parts: [{ text }] } }] };
 }
@@ -48,10 +44,6 @@ const DRAFT = {
   responseTemplate: '{"city": {{city}}, "forecast": "Sunny, 29C"}',
 };
 
-// ---------------------------------------------------------------------------
-// Spec
-// ---------------------------------------------------------------------------
-
 describe('agent tool synthesis — full loop integration', () => {
   beforeEach(() => {
     (globalThis as unknown as { indexedDB: IDBFactory }).indexedDB = new IDBFactory();
@@ -74,11 +66,8 @@ describe('agent tool synthesis — full loop integration', () => {
     budget.reset();
 
     const responses: GeminiChunk[][] = [
-      // Round 0: the agent realises it lacks a weather tool and proposes one.
       [toolChunk('proposeTool', DRAFT), finishChunk('STOP')],
-      // Round 1: with the tool now registered, the agent calls it.
       [toolChunk('searchWeather', { city: 'Goa' }), finishChunk('STOP')],
-      // Round 2: the agent wraps up.
       [textChunk('The weather in Goa is sunny.'), finishChunk('STOP')],
     ];
     const streamChunks = vi.fn(async (_req: StreamRoundRequest) => {
@@ -112,8 +101,7 @@ describe('agent tool synthesis — full loop integration', () => {
       }
     })();
 
-    // Approve the proposal exactly as ProposeToolCard.approve() would: register
-    // the tool, then resolve the interrupt with a `select` decision.
+    // Approve like ProposeToolCard.approve(): register tool, then resolve interrupt.
     await vi.waitFor(() => expect(interrupts.hasPending()).toBe(true));
     const callId = interrupts.pendingIds()[0];
     const spec = customTools.finalizeDraft({ ...DRAFT, origin: 'agent' });
@@ -125,15 +113,12 @@ describe('agent tool synthesis — full loop integration', () => {
 
     await run;
 
-    // Round 0 offered proposeTool.
     const round0Names = declaredNames(streamChunks, 0);
     expect(round0Names).toContain('proposeTool');
 
-    // Round 1's declarations include the freshly registered tool.
     const round1Names = declaredNames(streamChunks, 1);
     expect(round1Names).toContain('searchWeather');
 
-    // The synthesized tool actually executed and returned its templated JSON.
     const toolResults = events.filter(
       (e): e is Extract<AgentEvent, { type: 'tool_result' }> => e.type === 'tool_result',
     );
@@ -146,11 +131,9 @@ describe('agent tool synthesis — full loop integration', () => {
       forecast: 'Sunny, 29C',
     });
 
-    // The tool is persisted with agent provenance.
     expect(customTools.customToolNames().has('searchWeather')).toBe(true);
     expect(customTools.getById(spec.id)?.origin).toBe('agent');
 
-    // The turn completed cleanly across three rounds.
     const last = events.at(-1) as Extract<AgentEvent, { type: 'turn_complete' }>;
     expect(last.type).toBe('turn_complete');
     expect(streamChunks).toHaveBeenCalledTimes(3);

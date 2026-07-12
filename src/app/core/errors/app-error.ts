@@ -1,8 +1,4 @@
-// Shared error taxonomy for Atlas. Any error that reaches a boundary (the
-// global ErrorHandler, an RxJS stream, a service, or an interceptor) is
-// represented as an `AppError` so it can be classified, logged, redacted, and
-// presented through one consistent policy. See `normalize-error.ts` for the
-// mapping from raw `unknown` values into this shape.
+// Shared error taxonomy. All boundary errors become AppError for consistent classify/log/redact/present policy.
 
 export type ErrorCategory =
   | 'network'
@@ -28,8 +24,7 @@ export interface AppErrorOptions {
   // Fuller detail for logs / dev builds. Still redacted of secrets, but may
   // carry the original (sanitized) message.
   readonly technicalMessage?: string;
-  // Short machine-readable discriminator within a category (e.g. 'rate_limited',
-  // 'chunk_load', 'quota_exceeded') for logging and conditional handling.
+  // Machine-readable discriminator within a category for logging and conditional handling.
   readonly code?: string;
   readonly correlationId?: string;
   readonly context?: Readonly<Record<string, unknown>>;
@@ -76,9 +71,7 @@ const RETRYABLE_BY_CATEGORY: Record<ErrorCategory, boolean> = {
   unknown: false,
 };
 
-// A single, structured error type carrying everything the pipeline needs. It
-// extends the native `Error` so it interops with `instanceof Error`, RxJS, and
-// Angular's `ErrorHandler`, while adding classification + presentation metadata.
+// Structured error extending native Error for instanceof/RxJS/ErrorHandler interop plus classification metadata.
 export class AppError extends Error {
   readonly category: ErrorCategory;
   readonly severity: ErrorSeverity;
@@ -88,8 +81,7 @@ export class AppError extends Error {
   readonly technicalMessage: string;
   readonly code?: string;
 
-  // Enriched as the error propagates (e.g. the stream layer stamps the turnId as
-  // the correlationId), so these are intentionally mutable.
+  // Mutable: enriched as error propagates (e.g. stream layer stamps turnId).
   correlationId?: string;
   context?: Readonly<Record<string, unknown>>;
 
@@ -120,8 +112,7 @@ export class AppError extends Error {
     return this.category === 'abort';
   }
 
-  // Attach a correlation id / context as the error travels up the stack, without
-  // clobbering values a lower layer already set.
+  // Attach correlationId/context without clobbering values set by lower layers.
   enrich(patch: { correlationId?: string; context?: Record<string, unknown> }): this {
     if (patch.correlationId && !this.correlationId) this.correlationId = patch.correlationId;
     if (patch.context) this.context = { ...this.context, ...patch.context };
@@ -168,8 +159,7 @@ export class AuthError extends AppError {
   }
 }
 
-// Domain rule outcomes (budget exceeded, unknown handoff target). Usually
-// surfaced as friendly info rather than a red error.
+// Domain rule outcomes (budget exceeded, unknown handoff target) — surfaced as info, not red error.
 export class BusinessError extends AppError {
   constructor(options: CategoryOptions = {}) {
     super({ ...options, category: 'business' });
@@ -177,8 +167,7 @@ export class BusinessError extends AppError {
   }
 }
 
-// Unexpected runtime / render / environment errors (chunk-load, WebCrypto or
-// Canvas unavailable).
+// Unexpected runtime/render/environment errors (chunk-load, WebCrypto/Canvas unavailable).
 export class ClientError extends AppError {
   constructor(options: CategoryOptions = {}) {
     super({ ...options, category: 'client' });

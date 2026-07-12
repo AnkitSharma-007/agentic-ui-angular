@@ -9,15 +9,13 @@ interface ValueEntry {
   readonly node: ValueNode;
 }
 
-// Flat shape (every field always present) so the recursive template can read
-// fields without relying on discriminated-union narrowing, which Angular's
-// template type-checker doesn't do across @switch/@case.
+// Flat shape for recursive templates — Angular's template checker won't narrow unions across @switch/@case.
 interface ValueNode {
   readonly kind: 'scalar' | 'object' | 'list';
-  readonly text: string; // scalar
-  readonly title: string | null; // object heading (name/title/label)
-  readonly entries: readonly ValueEntry[]; // object
-  readonly items: readonly ValueNode[]; // list
+  readonly text: string;
+  readonly title: string | null;
+  readonly entries: readonly ValueEntry[];
+  readonly items: readonly ValueNode[];
 }
 
 const TITLE_KEYS = ['name', 'title', 'label'] as const;
@@ -53,17 +51,14 @@ export class CustomToolCardComponent {
 
   protected readonly argEntries = computed(() => Object.entries(this.args()));
 
-  // The payload the tool returned. Synthesized/custom tools wrap it under
-  // `response`; older/simple results may be the object itself.
+  // Synthesized tools wrap payload under `response`; older results may be the object itself.
   private readonly responsePayload = computed<unknown>(() => {
     const r = this.result();
     if (!r) return undefined;
     return 'response' in r ? r['response'] : r;
   });
 
-  // A recursive, human-friendly view of the payload: objects become key/value
-  // groups, arrays become lists, and scalars become text — at any nesting
-  // depth, so nested arrays/objects never fall back to raw JSON.
+  // Recursive human-friendly view — nested arrays/objects never fall back to raw JSON.
   protected readonly responseNode = computed<ValueNode | null>(() => {
     const payload = this.responsePayload();
     if (payload === null || payload === undefined) return null;

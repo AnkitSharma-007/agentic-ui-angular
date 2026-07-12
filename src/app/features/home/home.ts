@@ -148,12 +148,9 @@ export class HomeComponent implements OnInit {
   protected readonly replaySpeed = signal<ReplaySpeed>(1);
   protected readonly speedOptions = REPLAY_SPEEDS;
   protected readonly activeReplayId = signal<string | null>(null);
-  // A load-time replay failure (missing / corrupt / storage error) shown as a
-  // dedicated banner with a "Back to Library" recovery link (M19). Kept
-  // separate from the streaming error phase so its recovery action differs.
+  // Replay load failure banner with Back-to-Library recovery — separate from streaming errors.
   protected readonly replayLoadError = signal<string | null>(null);
-  // Names of failed tool modules currently being retried, so the card can show
-  // a spinner and block duplicate clicks (M19).
+  // Tool modules being retried (spinner + dedupe concurrent clicks).
   protected readonly retryingTools = signal<ReadonlySet<string>>(new Set());
   protected readonly canSave = computed(() => {
     return (
@@ -244,8 +241,7 @@ export class HomeComponent implements OnInit {
     this.focusPromptArea();
   }
 
-  // `afterNextRender` waits for the textarea to actually exist in the DOM —
-  // a `queueMicrotask` fires before zoneless CD has flushed and silently misses.
+  // afterNextRender waits for the textarea DOM; queueMicrotask fires before zoneless CD flushes.
   private focusPromptArea(): void {
     afterNextRender(() => this.promptArea()?.nativeElement.focus(), { injector: this.injector });
   }
@@ -275,23 +271,19 @@ export class HomeComponent implements OnInit {
   }
 
   protected componentFor(call: ToolCallState) {
-    // Touch `loadedNames` so the template re-renders when lazy descriptors
-    // finish loading and the tool's component class becomes available.
+    // Touch loadedNames so the template re-renders when lazy descriptors finish loading.
     void this.registry.loadedNames();
     return this.registry.componentFor(call.name);
   }
 
-  // Retry a lazy tool module that failed to load. `loadImpl` clears the failed
-  // flag on success (re-rendering the real card) and re-flags it on failure
-  // (the retry affordance reappears). Concurrent clicks are deduped (M19).
+  // Retry failed lazy module; loadImpl clears/re-flags failedNames; concurrent clicks deduped.
   protected retryToolLoad(name: string): void {
     if (this.retryingTools().has(name)) return;
     this.retryingTools.update((s) => new Set(s).add(name));
     void this.registry
       .loadImpl(name)
       .catch((err) => {
-        // The registry re-flags `failedNames`, so the retry button reappears —
-        // this is not silent recovery, just a log for diagnostics.
+        // Retry button reappears via failedNames; log is diagnostic only, not silent recovery.
         this.logger.debug('Tool module retry failed.', {
           category: 'chunk_load',
           context: { feature: 'home', op: 'retryToolLoad', tool: name },
@@ -307,11 +299,7 @@ export class HomeComponent implements OnInit {
       });
   }
 
-  // L15: NgComponentOutlet re-applies `inputs` whenever this returns a new
-  // object reference. The store hands out a fresh ToolCallState only when a call
-  // actually changes, so cache the built inputs per callId and reuse the same
-  // object (by reference) while the underlying fields are unchanged — avoiding a
-  // needless input re-application on every unrelated change-detection pass.
+  // NgComponentOutlet re-applies inputs on new references; cache per callId and reuse while fields unchanged.
   private readonly inputsCache = new Map<
     string,
     {
@@ -358,10 +346,7 @@ export class HomeComponent implements OnInit {
 
   protected send(): void {
     if (!this.canSend()) return;
-    // Offline gating: fail fast with a clear, actionable toast instead of
-    // firing a request that can only time out. `navigator.onLine` is coarse, so
-    // we gate only the obviously-offline case; real failures still surface via
-    // the streaming error path below.
+    // Fail fast when offline — navigator.onLine is coarse; real failures use the streaming error path.
     if (this.connectivity.offline()) {
       this.notifications.warn("You're offline. Reconnect to the internet and try again.", {
         dedupeKey: 'offline-send',
@@ -397,13 +382,7 @@ export class HomeComponent implements OnInit {
     this.saveWarning.set(null);
   }
 
-  // Central handling for a failed streaming turn. The error is routed through
-  // ErrorService for consistent classification, redaction, logging, and turn
-  // correlation. The terminal inline banner (driven by `store.error()`) remains
-  // the persistent record of the failure; on top of that, transient (retryable)
-  // failures also raise a lightweight toast with a one-tap Retry so recovery is
-  // reachable even when the banner has scrolled out of view. User cancellation
-  // is silent and never marks the turn as errored.
+  // Route failures through ErrorService; banner records failure, retryable cases also get a Retry toast.
   private onTurnError(err: unknown, turnId: string): void {
     const appError = this.errors.handle(err, {
       surface: 'none',
@@ -422,9 +401,7 @@ export class HomeComponent implements OnInit {
     }
   }
 
-  // Re-run the last submitted prompt after a failed turn. Reuses `send()`,
-  // which begins a fresh turn (resetting the error phase). Text-only: one-shot
-  // attachments from the original turn were already cleared on the first send.
+  // Re-runs last prompt via send(); attachments were already cleared on the first send.
   protected retryLast(): void {
     if (this.isStreaming()) return;
     const text = this.lastPrompt();
@@ -549,8 +526,7 @@ export class HomeComponent implements OnInit {
     this.saveStatus.set('saving');
     this.saveWarning.set(null);
     try {
-      // A "saved run" is one prompt + response, so we snapshot only the
-      // latest turn from the (potentially multi-turn) store.
+      // Saved run = one prompt + response; snapshot only the latest turn from the store.
       const turnId = this.store.currentTurn().id;
       const allEvents = this.store.events();
       const events = turnId ? allEvents.filter((e) => e.turnId === turnId) : allEvents;
@@ -558,8 +534,7 @@ export class HomeComponent implements OnInit {
       const allHistory = this.store.rawHistory();
       const rawHistory = sliceCurrentTurnHistory(allHistory);
 
-      // Refuse to persist a run past the hard cap rather than push a huge blob
-      // at IndexedDB and hit an opaque quota failure.
+      // Refuse hard-cap oversize runs rather than hit opaque IndexedDB quota failures.
       const sizeError = replaySizeError(rawHistory);
       if (sizeError) {
         this.saveWarning.set(sizeError);
@@ -567,15 +542,13 @@ export class HomeComponent implements OnInit {
         return;
       }
 
-      // Self-contained replays keep media inline; warn (don't block) when the
-      // encoded run grows heavy so the user knows it may load slowly.
+      // Warn (don't block) on heavy self-contained replays so users expect slow loads.
       this.saveWarning.set(replaySizeWarning(rawHistory));
 
       const firstTs = events.at(0)?.ts ?? Date.now();
       const lastTs = events.at(-1)?.ts ?? firstTs;
 
-      // Embed the specs of any custom tools this turn called, so the replay
-      // renders their cards even after the tool is deleted or on another device.
+      // Embed custom-tool specs so replay cards render after deletion or on another device.
       const customToolSpecs = this.collectCustomToolSpecs(events);
 
       await this.replays.save({
@@ -595,9 +568,7 @@ export class HomeComponent implements OnInit {
       });
       this.saveStatus.set('saved');
     } catch (err) {
-      // Classify + log rather than swallow. The persisted "Save failed, retry"
-      // button state stays, but we also surface the concrete reason (e.g. the
-      // browser storage being full) so the user can act on it.
+      // Classify + log save failures; button stays in retry state while surfacing concrete reason.
       const appError = this.errors.handle(err, {
         surface: 'none',
         context: { feature: 'home', op: 'save' },
@@ -607,8 +578,7 @@ export class HomeComponent implements OnInit {
     }
   }
 
-  // Map the tool_call events of a turn to the specs of any custom tools they
-  // invoked. Names not owned by CustomToolsService (built-ins) are skipped.
+  // Map tool_call events to owned custom-tool specs; skip built-ins.
   private collectCustomToolSpecs(events: readonly AgentEvent[]): readonly CustomToolSpec[] {
     const owned = this.customTools.customToolNames();
     const wanted = new Set<string>();
@@ -630,17 +600,14 @@ export class HomeComponent implements OnInit {
     try {
       const payload = await this.replays.load(id);
       if (!payload) {
-        // Missing run (deleted, or a shared link from another browser). Surface
-        // a Back-to-Library recovery path and drop the dead ?replay= param so a
-        // refresh doesn't re-trigger the same failure (M19).
+        // Missing run: Back-to-Library recovery and drop dead ?replay= param on refresh.
         this.replayLoadError.set(
           "We couldn't find that saved run. It may have been deleted from this browser.",
         );
         this.clearReplayQueryParam();
         return;
       }
-      // Guard the untrusted stored shape before replaying it. `ensureRegistered
-      // ForReplay` re-validates each embedded spec, so invalid ones are skipped.
+      // Validate untrusted stored shape; ensureRegisteredForReplay skips invalid embedded specs.
       if (!isValidReplayPayload(payload)) {
         this.replayLoadError.set(
           "This saved run is corrupted or from an incompatible version and can't be replayed.",
@@ -657,14 +624,12 @@ export class HomeComponent implements OnInit {
       this.saveStatus.set('idle');
       this.activeReplayId.set(id);
 
-      // Re-register any embedded custom-tool specs into the registry so their
-      // cards can resolve. Done before preloading descriptors below.
+      // Re-register embedded specs before preloading descriptors.
       for (const spec of payload.customToolSpecs ?? []) {
         this.customTools.ensureRegisteredForReplay(spec);
       }
 
-      // Replay never calls `registry.execute()`, so lazy tool descriptors
-      // must be pre-warmed or the cards stick on "Loading module…".
+      // Pre-warm lazy descriptors — replay never calls registry.execute().
       await this.preloadToolDescriptors(payload.events);
 
       const turnId = newTurnId();
@@ -683,8 +648,7 @@ export class HomeComponent implements OnInit {
     }
   }
 
-  // Classify + log a replay failure through ErrorService (surface handled by the
-  // caller's banner) and hand back the user-facing message.
+  // Classify replay errors via ErrorService; caller owns the banner surface.
   private describeReplayError(err: unknown, op: string): string {
     return this.errors.handle(err, {
       surface: 'none',
@@ -707,8 +671,7 @@ export class HomeComponent implements OnInit {
     }
     if (toolNames.size === 0) return;
     const names = [...toolNames];
-    // allSettled so one failure doesn't block siblings — failures land in
-    // `registry.failedNames` for the template's "Failed to load" affordance.
+    // allSettled so one preload failure doesn't block siblings; failures go to registry.failedNames.
     const results = await Promise.allSettled(names.map((name) => this.registry.loadImpl(name)));
     for (const [i, result] of results.entries()) {
       if (result.status === 'rejected') {
@@ -723,8 +686,7 @@ export class HomeComponent implements OnInit {
 
   private handleReplayEvent(event: AgentEvent): void {
     this.store.pushEvent(event);
-    // Live runs call `agents.switchActive` directly; the saved log only
-    // carries the resulting event, so replay re-issues it for the graph.
+    // Replay re-issues agent_handoff because the saved log only carries the resulting event.
     if (event.type === 'agent_handoff') {
       this.agents.switchActive({
         turnId: event.turnId,
@@ -748,8 +710,7 @@ function deriveTitle(prompt: string): string {
   return trimmed.length <= 60 ? trimmed : trimmed.slice(0, 57).trimEnd() + '…';
 }
 
-// Slice of raw history from the last `role: 'user'` entry onwards — the
-// current turn's Content[] view. Falls back to the full history if absent.
+// Raw history from the last user message onward (current turn); falls back to full history.
 function sliceCurrentTurnHistory(history: readonly HistoryContent[]): readonly HistoryContent[] {
   for (let i = history.length - 1; i >= 0; i--) {
     if (history[i].role === 'user') return history.slice(i);
@@ -757,11 +718,7 @@ function sliceCurrentTurnHistory(history: readonly HistoryContent[]): readonly H
   return history;
 }
 
-// Collapse repeated calls to a "singleton" tool (one declaring `singleton: true`
-// in its manifest, e.g. the itinerary map) down to a single card: the latest
-// instance, preferring a non-failed one over a failed/rejected one. Which tools
-// are singletons is driven by the registry, so no tool name is hard-coded here
-// (N4). Non-singleton tools pass through untouched.
+// Collapse singleton tools to one card (latest, preferring non-failed); registry drives which names qualify.
 function collapseSingletonCards(
   calls: readonly ToolCallState[],
   isSingleton: (name: string) => boolean,

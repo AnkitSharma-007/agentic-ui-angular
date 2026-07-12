@@ -46,8 +46,7 @@ describe('GuideComponent', () => {
     fixture.detectChanges();
 
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    // The Settings page exposes Tight / Demo / Generous presets — the older
-    // copy referenced a "Loose" preset that never shipped.
+    // Settings exposes Tight/Demo/Generous presets — copy no longer references the unshipped "Loose".
     expect(text).toMatch(/Tight\s*\/\s*Demo\s*\/\s*Generous/);
     expect(text).not.toContain('Loose');
   });
