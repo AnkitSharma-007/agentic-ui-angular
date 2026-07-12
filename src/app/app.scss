@@ -22,3 +22,48 @@
     padding: 1rem 0.75rem;
   }
 }
+
+// Last-resort banner for otherwise-uncaught errors. Non-blocking: it sits below
+// the header so the user can still navigate away or reload.
+.app-error-boundary {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0.75rem auto 0;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  color: var(--mat-sys-on-error-container);
+  background-color: var(--mat-sys-error-container);
+  border: 1px solid color-mix(in srgb, var(--mat-sys-error) 40%, transparent);
+
+  .boundary-icon {
+    color: var(--mat-sys-error);
+    flex: 0 0 auto;
+  }
+
+  .boundary-message {
+    flex: 1 1 auto;
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+
+  .boundary-actions {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  @media (max-width: 600px) {
+    align-items: flex-start;
+    flex-wrap: wrap;
+
+    .boundary-actions {
+      width: 100%;
+      justify-content: flex-end;
+    }
+  }
+}

@@ -1,6 +1,22 @@
 <div class="app-shell">
   <app-header />
 
+  @if (shellError.error(); as err) {
+    <div class="app-error-boundary" role="alert" aria-live="assertive">
+      <span class="material-symbols-outlined boundary-icon" aria-hidden="true">error</span>
+      <p class="boundary-message">{{ err.userMessage }}</p>
+      <div class="boundary-actions">
+        @if (shellError.reloadSuggested()) {
+          <button mat-flat-button type="button" (click)="reload()">
+            <mat-icon>refresh</mat-icon>
+            Reload
+          </button>
+        }
+        <button mat-button type="button" (click)="dismissError()">Dismiss</button>
+      </div>
+    </div>
+  }
+
   <main class="app-main">
     <router-outlet />
   </main>
@@ -13,4 +29,3 @@
 @defer (on idle) {
   <app-observability-drawer />
 }
-
