@@ -1,4 +1,4 @@
-import { Service, computed, signal } from '@angular/core';
+import { Service, computed, inject, signal } from '@angular/core';
 import {
   idbClearStores,
   idbDeleteMany,
@@ -10,6 +10,8 @@ import {
 import type { ReplayPayload, ReplaySummary } from './replay.types';
 import { isValidReplayPayload, isValidReplaySummary, toSummary } from './replay.types';
 import { MAX_REPLAY_COUNT, MAX_TOTAL_REPLAY_BYTES } from './replay-size';
+import { LoggerService } from '../logging/logger.service';
+import { normalizeStorageError } from '../errors/normalize-error';
 
 const DB_NAME = 'agentic-ui-angular';
 // v2 adds a lightweight `summaries` store so the Library route no longer has to
@@ -20,6 +22,7 @@ const STORE_SUMMARIES = 'summaries';
 
 @Service()
 export class ReplayService {
+  private readonly logger = inject(LoggerService);
   private dbPromise: Promise<IDBDatabase> | null = null;
 
   private readonly _summaries = signal<readonly ReplaySummary[]>([]);
@@ -49,7 +52,7 @@ export class ReplayService {
       await this.enforceCaps(db, payload.id);
       this._lastError.set(null);
     } catch (err) {
-      this.captureError(err);
+      this.captureError(err, 'save');
       throw err;
     }
   }
@@ -59,9 +62,7 @@ export class ReplayService {
       const db = await this.db();
       // Read only the lightweight summary rows — the whole point of the v2
       // store. Skip corrupt/tampered rows so one bad row can't crash the list.
-      let summaries = (await idbGetAll<unknown>(db, STORE_SUMMARIES)).filter(
-        isValidReplaySummary,
-      );
+      let summaries = (await idbGetAll<unknown>(db, STORE_SUMMARIES)).filter(isValidReplaySummary);
       // One-time migration: profiles upgraded from v1 have full payloads but no
       // summaries yet. Derive them once and persist so later refreshes stay
       // cheap. (A genuinely empty library just does one extra empty read.)
@@ -74,7 +75,7 @@ export class ReplayService {
       this._lastError.set(null);
       return sorted;
     } catch (err) {
-      this.captureError(err);
+      this.captureError(err, 'refresh');
       // Flip out of the indeterminate spinner and drop stale rows so the
       // Library's `refreshFailed` predicate (loaded && empty && error) fires.
       this._loaded.set(true);
@@ -90,7 +91,7 @@ export class ReplayService {
       this._lastError.set(null);
       return payload ?? null;
     } catch (err) {
-      this.captureError(err);
+      this.captureError(err, 'load');
       throw err;
     }
   }
@@ -105,7 +106,7 @@ export class ReplayService {
       this._summaries.update((list) => list.filter((s) => s.id !== id));
       this._lastError.set(null);
     } catch (err) {
-      this.captureError(err);
+      this.captureError(err, 'delete');
       throw err;
     }
   }
@@ -117,7 +118,7 @@ export class ReplayService {
       this._summaries.set([]);
       this._lastError.set(null);
     } catch (err) {
-      this.captureError(err);
+      this.captureError(err, 'clear');
       throw err;
     }
   }
@@ -128,9 +129,7 @@ export class ReplayService {
 
   // Rebuild the summary store from any full payloads left by a v1 profile.
   private async backfillSummaries(db: IDBDatabase): Promise<ReplaySummary[]> {
-    const payloads = (await idbGetAll<unknown>(db, STORE_REPLAYS)).filter(
-      isValidReplayPayload,
-    );
+    const payloads = (await idbGetAll<unknown>(db, STORE_REPLAYS)).filter(isValidReplayPayload);
     if (payloads.length === 0) return [];
     const derived = payloads.map(toSummary);
     await idbPutMany(
@@ -174,9 +173,7 @@ export class ReplayService {
 
   private db(): Promise<IDBDatabase> {
     if (this._unavailable()) {
-      return Promise.reject(
-        new Error('Replay storage is unavailable in this browser.'),
-      );
+      return Promise.reject(new Error('Replay storage is unavailable in this browser.'));
     }
     if (!this.dbPromise) {
       this.dbPromise = openDb(DB_NAME, DB_VERSION, (db) => {
@@ -188,16 +185,24 @@ export class ReplayService {
         }
       }).catch((err) => {
         this._unavailable.set(true);
-        this.captureError(err);
+        this.captureError(err, 'open');
         throw err;
       });
     }
     return this.dbPromise;
   }
 
-  private captureError(err: unknown): void {
-    const message = err instanceof Error ? err.message : String(err);
-    this._lastError.set(message);
+  // Every storage failure funnels through here: classify (quota/blocked/other
+  // IDB failures become a StorageError), log once with redaction, and surface a
+  // friendly, actionable message via `lastError` for the Library banner.
+  private captureError(err: unknown, op: string): void {
+    const appError = normalizeStorageError(err, { feature: 'replay', op });
+    this.logger.error(appError.technicalMessage, {
+      category: appError.category,
+      context: { feature: 'replay', op },
+      error: appError.cause ?? err,
+    });
+    this._lastError.set(appError.userMessage);
   }
 }
 

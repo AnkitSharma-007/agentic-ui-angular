@@ -4,6 +4,8 @@ import { ToolRegistry } from '../registry/tool-registry';
 import type { ToolManifest } from '../registry/tool-descriptor';
 import { specToDeclaration } from './custom-tool-declaration';
 import { MAX_CUSTOM_TOOLS, isValidCustomToolSpec, type CustomToolSpec } from './custom-tool.types';
+import { LoggerService } from '../logging/logger.service';
+import { normalizeStorageError } from '../errors/normalize-error';
 
 const DB_NAME = 'atlas-custom-tools';
 const DB_VERSION = 1;
@@ -12,6 +14,7 @@ const STORE = 'tools';
 @Service()
 export class CustomToolsService {
   private readonly registry = inject(ToolRegistry);
+  private readonly logger = inject(LoggerService);
 
   private dbPromise: Promise<IDBDatabase> | null = null;
   private readonly _specs = signal<readonly CustomToolSpec[]>([]);
@@ -51,8 +54,17 @@ export class CustomToolsService {
         kept.push(spec);
       }
       this._specs.set(kept);
-    } catch {
+    } catch (err) {
+      // Persistence is a graceful-degradation feature: custom tools still work
+      // for the session, so we flag `unavailable` (the UI warns) and log rather
+      // than surface a blocking error.
       this._unavailable.set(true);
+      const appError = normalizeStorageError(err, { feature: 'custom-tools', op: 'load' });
+      this.logger.warn(appError.technicalMessage, {
+        category: appError.category,
+        context: { feature: 'custom-tools', op: 'load' },
+        error: appError.cause ?? err,
+      });
     } finally {
       this._loaded.set(true);
     }
@@ -140,6 +152,12 @@ export class CustomToolsService {
         }
       }).catch((err) => {
         this._unavailable.set(true);
+        const appError = normalizeStorageError(err, { feature: 'custom-tools', op: 'open' });
+        this.logger.warn(appError.technicalMessage, {
+          category: appError.category,
+          context: { feature: 'custom-tools', op: 'open' },
+          error: appError.cause ?? err,
+        });
         throw err;
       });
     }

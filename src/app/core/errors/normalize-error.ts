@@ -17,10 +17,7 @@ import { redactString } from '../logging/redact';
 // preserve the behavior of the legacy `humanizeGeminiError` so migrating call
 // sites is a no-op for users.
 
-export function normalizeError(
-  err: unknown,
-  context?: Record<string, unknown>,
-): AppError {
+export function normalizeError(err: unknown, context?: Record<string, unknown>): AppError {
   // Already normalized — just enrich with any newly-available context.
   if (err instanceof AppError) {
     return context ? err.enrich({ context }) : err;
@@ -135,6 +132,24 @@ export function normalizeError(
 // mocking Angular's global dev-mode flag.
 export function unknownUserMessage(technicalMessage: string, isDev: boolean): string {
   return isDev ? technicalMessage || 'Unknown error.' : GENERIC_USER_MESSAGE;
+}
+
+// Storage-context normalization. Quota already classifies via `normalizeError`
+// (QuotaExceededError -> StorageError). Within an IndexedDB/localStorage flow,
+// an otherwise-unclassified failure — an open that is blocked or version-errored,
+// a private-mode rejection — is still a storage problem, so re-tag it as a
+// StorageError with actionable copy. Recognized categories pass through.
+export function normalizeStorageError(err: unknown, context?: Record<string, unknown>): AppError {
+  const normalized = normalizeError(err, context);
+  if (normalized.category !== 'unknown') return normalized;
+  return new StorageError({
+    code: 'idb_unavailable',
+    userMessage:
+      'Your browser blocked local storage, so saved data may be unavailable. Check your privacy settings and try again.',
+    technicalMessage: normalized.technicalMessage,
+    context,
+    cause: err,
+  });
 }
 
 // Best-effort extraction of a human string from an unknown throwable. Mirrors

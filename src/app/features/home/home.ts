@@ -22,8 +22,8 @@ import { MatIconModule } from '@angular/material/icon';
 
 import { ApiKeyService } from '../../core/services/api-key.service';
 import { GeminiService } from '../../core/services/gemini.service';
-import { humanizeGeminiError } from '../../core/errors';
 import { ErrorService } from '../../core/errors/error.service';
+import { LoggerService } from '../../core/logging/logger.service';
 import { NotificationService } from '../../shared/notifications/notification.service';
 import { ConnectivityService } from '../../core/connectivity/connectivity.service';
 import { AgentEventStore, type ToolCallState } from '../../core/streaming/agent-event.store';
@@ -98,6 +98,7 @@ export class HomeComponent implements OnInit {
   protected readonly replays = inject(ReplayService);
   private readonly customTools = inject(CustomToolsService);
   private readonly errors = inject(ErrorService);
+  private readonly logger = inject(LoggerService);
   private readonly notifications = inject(NotificationService);
   private readonly connectivity = inject(ConnectivityService);
   private readonly tokenAccountant = inject(TokenAccountantService);
@@ -288,8 +289,14 @@ export class HomeComponent implements OnInit {
     this.retryingTools.update((s) => new Set(s).add(name));
     void this.registry
       .loadImpl(name)
-      .catch(() => {
-        /* re-flagged in registry.failedNames; the retry button reappears */
+      .catch((err) => {
+        // The registry re-flags `failedNames`, so the retry button reappears —
+        // this is not silent recovery, just a log for diagnostics.
+        this.logger.debug('Tool module retry failed.', {
+          category: 'chunk_load',
+          context: { feature: 'home', op: 'retryToolLoad', tool: name },
+          error: err,
+        });
       })
       .finally(() => {
         this.retryingTools.update((s) => {
@@ -587,7 +594,15 @@ export class HomeComponent implements OnInit {
         stats: this.stats(),
       });
       this.saveStatus.set('saved');
-    } catch {
+    } catch (err) {
+      // Classify + log rather than swallow. The persisted "Save failed, retry"
+      // button state stays, but we also surface the concrete reason (e.g. the
+      // browser storage being full) so the user can act on it.
+      const appError = this.errors.handle(err, {
+        surface: 'none',
+        context: { feature: 'home', op: 'save' },
+      });
+      this.saveWarning.set(appError.userMessage);
       this.saveStatus.set('error');
     }
   }
@@ -660,12 +675,21 @@ export class HomeComponent implements OnInit {
         .pipe(takeUntil(this.cancel$), takeUntilDestroyed(this.destroyRef))
         .subscribe({
           next: (event) => this.handleReplayEvent(event),
-          error: (err) => this.store.markError(humanizeGeminiError(err)),
+          error: (err) => this.store.markError(this.describeReplayError(err, 'play')),
         });
     } catch (err) {
-      this.replayLoadError.set(humanizeGeminiError(err));
+      this.replayLoadError.set(this.describeReplayError(err, 'load'));
       this.clearReplayQueryParam();
     }
+  }
+
+  // Classify + log a replay failure through ErrorService (surface handled by the
+  // caller's banner) and hand back the user-facing message.
+  private describeReplayError(err: unknown, op: string): string {
+    return this.errors.handle(err, {
+      surface: 'none',
+      context: { feature: 'home', op: `replay:${op}` },
+    }).userMessage;
   }
 
   private clearReplayQueryParam(): void {
@@ -688,7 +712,11 @@ export class HomeComponent implements OnInit {
     const results = await Promise.allSettled(names.map((name) => this.registry.loadImpl(name)));
     for (const [i, result] of results.entries()) {
       if (result.status === 'rejected') {
-        console.warn(`[replay] Failed to preload tool descriptor "${names[i]}":`, result.reason);
+        this.logger.warn('Failed to preload a replay tool descriptor.', {
+          category: 'chunk_load',
+          context: { feature: 'home', op: 'preloadToolDescriptors', tool: names[i] },
+          error: result.reason,
+        });
       }
     }
   }

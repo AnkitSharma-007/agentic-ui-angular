@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { AppError, GENERIC_USER_MESSAGE } from './app-error';
-import { extractMessage, normalizeError, unknownUserMessage } from './normalize-error';
+import {
+  extractMessage,
+  normalizeError,
+  normalizeStorageError,
+  unknownUserMessage,
+} from './normalize-error';
 
 describe('normalizeError — classification', () => {
   it('passes through an existing AppError and enriches context', () => {
@@ -77,6 +82,31 @@ describe('normalizeError — messaging (dev mode is on under test)', () => {
   it('redacts secrets out of the technical message', () => {
     const out = normalizeError(new Error('boom key=AIzaSyA1234567890abcdefghijklmnop'));
     expect(out.technicalMessage).not.toContain('AIzaSy');
+  });
+});
+
+describe('normalizeStorageError — storage-context re-tagging', () => {
+  it('re-tags an otherwise-unknown IDB failure as a storage error', () => {
+    const out = normalizeStorageError(new Error('The database connection is closing.'), {
+      feature: 'replay',
+      op: 'open',
+    });
+    expect(out.category).toBe('storage');
+    expect(out.code).toBe('idb_unavailable');
+    expect(out.userMessage).toMatch(/local storage/i);
+    expect(out.context).toMatchObject({ feature: 'replay', op: 'open' });
+  });
+
+  it('passes a recognized quota failure straight through (no re-tag)', () => {
+    const out = normalizeStorageError(new DOMException('exceeded', 'QuotaExceededError'));
+    expect(out.category).toBe('storage');
+    expect(out.code).toBe('quota_exceeded');
+  });
+
+  it('does not swallow a recognized non-storage category', () => {
+    const out = normalizeStorageError(new DOMException('Aborted', 'AbortError'));
+    expect(out.category).toBe('abort');
+    expect(out.isSilent).toBe(true);
   });
 });
 

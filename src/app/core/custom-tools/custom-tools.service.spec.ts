@@ -33,8 +33,7 @@ function makeSpec(partial: Partial<CustomToolSpec> = {}): CustomToolSpec {
       { name: 'text', type: 'string', description: 'Text', required: true },
       { name: 'lang', type: 'string', description: 'Target', required: false },
     ],
-    responseTemplate:
-      partial.responseTemplate ?? '{"translated": {{text}}, "lang": {{lang}}}',
+    responseTemplate: partial.responseTemplate ?? '{"translated": {{text}}, "lang": {{lang}}}',
     createdAt: partial.createdAt ?? 1_000_000,
     updatedAt: partial.updatedAt ?? 1_000_000,
   };
@@ -57,6 +56,22 @@ describe('CustomToolsService', () => {
     expect(service.specs()).toEqual([]);
     expect(service.unavailable()).toBe(false);
     expect(service.loaded()).toBe(false);
+  });
+
+  it('flags unavailable and still finishes loading when persistence is unreachable', async () => {
+    // Poison the DB so idbGetAll throws — the service must degrade gracefully
+    // (session-only tools) rather than swallow the failure or crash load().
+    type Private = { dbPromise: Promise<IDBDatabase> | null };
+    (service as unknown as Private).dbPromise = Promise.resolve({
+      transaction: () => {
+        throw new Error('store missing');
+      },
+    } as unknown as IDBDatabase);
+
+    await service.load();
+
+    expect(service.unavailable()).toBe(true);
+    expect(service.loaded()).toBe(true);
   });
 
   it('save() persists, exposes the spec, and registers a tool manifest', async () => {
@@ -226,10 +241,10 @@ describe('CustomToolsService — response template via the loaded descriptor', (
   it('substitutes parameters into the response template and parses JSON', () => {
     // applyResponseTemplate is pure; cover it directly rather than waiting on
     // the lazy descriptor chunk (which depends on a Material component).
-    const result = applyResponseTemplate(
-      '{"translated": {{text}}, "lang": {{lang}}}',
-      { text: 'hello', lang: 'fr' },
-    );
+    const result = applyResponseTemplate('{"translated": {{text}}, "lang": {{lang}}}', {
+      text: 'hello',
+      lang: 'fr',
+    });
     expect(result).toEqual({
       ok: true,
       value: { translated: 'hello', lang: 'fr' },
@@ -258,8 +273,7 @@ describe('CustomToolsService — response template via the loaded descriptor', (
   });
 
   it('handles a realistic mixed template with quoted and literal fields', () => {
-    const template =
-      '{"city": "{{city}}", "restaurants": [{"name": "Bean Me Up", "rating": 4.7}]}';
+    const template = '{"city": "{{city}}", "restaurants": [{"name": "Bean Me Up", "rating": 4.7}]}';
     const result = applyResponseTemplate(template, { city: 'Goa' });
     expect(result).toEqual({
       ok: true,
@@ -292,7 +306,9 @@ describe('parseCustomToolSpec / isValidCustomToolSpec (C2)', () => {
   it('rejects a parameter with a bad name or unsupported type', () => {
     expect(
       parseCustomToolSpec(
-        makeSpec({ parameters: [{ name: 'bad name', type: 'string', description: '', required: true }] }),
+        makeSpec({
+          parameters: [{ name: 'bad name', type: 'string', description: '', required: true }],
+        }),
       ),
     ).toBeNull();
     expect(
@@ -322,9 +338,7 @@ describe('parseCustomToolSpec / isValidCustomToolSpec (C2)', () => {
   });
 
   it('rejects wrong field types and an unknown origin', () => {
-    expect(
-      parseCustomToolSpec(makeSpec({ createdAt: 'nope' as unknown as number })),
-    ).toBeNull();
+    expect(parseCustomToolSpec(makeSpec({ createdAt: 'nope' as unknown as number }))).toBeNull();
     // makeSpec() omits origin, so set it directly to exercise the enum guard.
     expect(parseCustomToolSpec({ ...makeSpec(), origin: 'system' })).toBeNull();
   });
@@ -378,8 +392,16 @@ describe('CustomToolsService — load() hardening (C2)', () => {
 
   it('de-duplicates stored rows by name, keeping the newest', async () => {
     const db = await openToolsDb();
-    await idbPut(db, 'tools', makeSpec({ id: 'old', name: 'dupe', description: 'old', createdAt: 1 }));
-    await idbPut(db, 'tools', makeSpec({ id: 'new', name: 'dupe', description: 'new', createdAt: 5 }));
+    await idbPut(
+      db,
+      'tools',
+      makeSpec({ id: 'old', name: 'dupe', description: 'old', createdAt: 1 }),
+    );
+    await idbPut(
+      db,
+      'tools',
+      makeSpec({ id: 'new', name: 'dupe', description: 'new', createdAt: 5 }),
+    );
 
     const { svc } = await freshLoad();
 
@@ -399,7 +421,11 @@ describe('CustomToolsService — load() hardening (C2)', () => {
     reg.register({
       name: 'proposeTool',
       description: 'built-in',
-      declaration: { name: 'proposeTool', description: 'built-in', parameters: { type: 'OBJECT', properties: {} } },
+      declaration: {
+        name: 'proposeTool',
+        description: 'built-in',
+        parameters: { type: 'OBJECT', properties: {} },
+      },
       load: async () => {
         throw new Error('not needed');
       },
@@ -426,9 +452,15 @@ describe('CustomToolsService — load() hardening (C2)', () => {
   });
 
   it('ensureRegisteredForReplay() ignores an invalid embedded spec', () => {
-    service.ensureRegisteredForReplay(
-      { id: 'x', name: 'bad name!', description: '', parameters: [], responseTemplate: '{}', createdAt: 1, updatedAt: 1 } as unknown as CustomToolSpec,
-    );
+    service.ensureRegisteredForReplay({
+      id: 'x',
+      name: 'bad name!',
+      description: '',
+      parameters: [],
+      responseTemplate: '{}',
+      createdAt: 1,
+      updatedAt: 1,
+    } as unknown as CustomToolSpec);
     expect(registry.get('bad name!')).toBeUndefined();
     expect(service.count()).toBe(0);
   });

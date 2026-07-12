@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiKeyService } from './api-key.service';
 import { DecryptionFailedError } from '../crypto/webcrypto.helpers';
 import { deleteSessionKek, getSessionKek } from '../crypto/session-key-store';
+import { StorageError } from '../errors/app-error';
 
 const SESSION_ENVELOPE_KEY = 'agentic-ui.api-key.session.v2';
 const LEGACY_SESSION_KEY = 'agentic-ui.api-key.session';
@@ -80,6 +81,17 @@ describe('ApiKeyService', () => {
     const service = TestBed.inject(ApiKeyService);
     await service.setForSession('sk-ok');
     expect(service.sessionPersistenceFailed()).toBe(false);
+  });
+
+  it('setEncryptedLocal() surfaces a typed StorageError when the localStorage write fails', async () => {
+    const service = TestBed.inject(ApiKeyService);
+    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('QuotaExceededError');
+    });
+
+    await expect(service.setEncryptedLocal('sk-locked', 'pw')).rejects.toBeInstanceOf(StorageError);
+
+    spy.mockRestore();
   });
 
   it('restore() rehydrates the session key from the envelope + KEK across a reload', async () => {

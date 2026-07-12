@@ -17,11 +17,7 @@ describe('HomeComponent.save() — turn scoping', () => {
     (globalThis as unknown as { indexedDB: IDBFactory }).indexedDB = new IDBFactory();
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
-      providers: [
-        provideZonelessChangeDetection(),
-        provideAnimationsAsync(),
-        provideRouter([]),
-      ],
+      providers: [provideZonelessChangeDetection(), provideAnimationsAsync(), provideRouter([])],
     });
   });
 
@@ -109,9 +105,7 @@ describe('HomeComponent.save() — turn scoping', () => {
       finishReason: 'STOP',
     });
 
-    const onlyModel: readonly HistoryContent[] = [
-      { role: 'model', parts: [{ text: 'orphan' }] },
-    ];
+    const onlyModel: readonly HistoryContent[] = [{ role: 'model', parts: [{ text: 'orphan' }] }];
     store.loadRawHistory(onlyModel);
 
     const fixture = TestBed.createComponent(HomeComponent);
@@ -127,5 +121,44 @@ describe('HomeComponent.save() — turn scoping', () => {
 
     const payload = saveSpy.mock.calls[0][0] as ReplayPayload;
     expect(payload.rawHistory).toEqual(onlyModel);
+  });
+
+  it('classifies a failed save and surfaces an actionable reason instead of swallowing it', async () => {
+    const store = TestBed.inject(AgentEventStore);
+    const replays = TestBed.inject(ReplayService);
+
+    store.beginTurn('turn-fail');
+    store.pushEvent({ type: 'turn_start', ts: 1, turnId: 'turn-fail' });
+    store.pushEvent({ type: 'text_delta', ts: 2, turnId: 'turn-fail', chunk: 'hello' });
+    store.pushEvent({
+      type: 'turn_complete',
+      ts: 3,
+      turnId: 'turn-fail',
+      rounds: 1,
+      finishReason: 'STOP',
+    });
+    store.loadRawHistory([
+      { role: 'user', parts: [{ text: 'hi' }] },
+      { role: 'model', parts: [{ text: 'hello' }] },
+    ]);
+
+    const fixture = TestBed.createComponent(HomeComponent);
+    const instance = fixture.componentInstance as unknown as {
+      lastPrompt: { set: (v: string) => void };
+      save: () => Promise<void>;
+      saveStatus: () => string;
+      saveWarning: () => string | null;
+    };
+    await fixture.whenStable();
+    instance.lastPrompt.set('hi');
+
+    vi.spyOn(replays, 'save').mockRejectedValue(new DOMException('exceeded', 'QuotaExceededError'));
+
+    await instance.save();
+
+    expect(instance.saveStatus()).toBe('error');
+    expect(instance.saveWarning()).toBe(
+      'Your browser storage is full. Delete some saved runs and try again.',
+    );
   });
 });

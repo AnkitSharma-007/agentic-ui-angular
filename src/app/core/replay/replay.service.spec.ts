@@ -13,11 +13,10 @@ function makePayload(partial: Partial<ReplayPayload> = {}): ReplayPayload {
     savedAt: partial.savedAt ?? new Date('2026-05-10T10:00:00.000Z').toISOString(),
     prompt: partial.prompt ?? 'Plan a weekend in Goa.',
     model: partial.model ?? 'gemini-3-flash-preview',
-    events:
-      partial.events ?? [
-        { type: 'turn_start', ts: 0, turnId: 't1' },
-        { type: 'turn_complete', ts: 100, turnId: 't1', rounds: 1, finishReason: 'STOP' },
-      ],
+    events: partial.events ?? [
+      { type: 'turn_start', ts: 0, turnId: 't1' },
+      { type: 'turn_complete', ts: 100, turnId: 't1', rounds: 1, finishReason: 'STOP' },
+    ],
     rawHistory: partial.rawHistory ?? [],
     durationMs: partial.durationMs ?? 100,
     eventCount: partial.eventCount ?? 2,
@@ -110,15 +109,9 @@ describe('ReplayService', () => {
   });
 
   it('refresh() sorts summaries newest-savedAt first', async () => {
-    await service.save(
-      makePayload({ id: 'old', savedAt: '2026-05-01T08:00:00.000Z' }),
-    );
-    await service.save(
-      makePayload({ id: 'new', savedAt: '2026-05-15T08:00:00.000Z' }),
-    );
-    await service.save(
-      makePayload({ id: 'mid', savedAt: '2026-05-10T08:00:00.000Z' }),
-    );
+    await service.save(makePayload({ id: 'old', savedAt: '2026-05-01T08:00:00.000Z' }));
+    await service.save(makePayload({ id: 'new', savedAt: '2026-05-15T08:00:00.000Z' }));
+    await service.save(makePayload({ id: 'mid', savedAt: '2026-05-10T08:00:00.000Z' }));
 
     const summaries = await service.refresh();
     expect(summaries.map((s) => s.id)).toEqual(['new', 'mid', 'old']);
@@ -224,6 +217,32 @@ describe('ReplayService', () => {
 
     expect(summaries.map((s) => s.id)).toEqual(['valid']);
     expect(service.summaries().map((s) => s.id)).toEqual(['valid']);
+  });
+
+  it('classifies a quota failure as a storage error with actionable copy', async () => {
+    type Private = { dbPromise: Promise<IDBDatabase> | null };
+    (service as unknown as Private).dbPromise = Promise.resolve({
+      transaction: () => {
+        throw new DOMException('exceeded', 'QuotaExceededError');
+      },
+    } as unknown as IDBDatabase);
+
+    await expect(service.save(makePayload({ id: 'q' }))).rejects.toBeInstanceOf(DOMException);
+    expect(service.lastError()).toBe(
+      'Your browser storage is full. Delete some saved runs and try again.',
+    );
+  });
+
+  it('re-tags an otherwise-unknown IDB failure as a storage error message', async () => {
+    type Private = { dbPromise: Promise<IDBDatabase> | null };
+    (service as unknown as Private).dbPromise = Promise.resolve({
+      transaction: () => {
+        throw new Error('The database connection is closing.');
+      },
+    } as unknown as IDBDatabase);
+
+    await expect(service.load('anything')).rejects.toBeInstanceOf(Error);
+    expect(service.lastError()).toMatch(/local storage/i);
   });
 
   it('clearError() resets lastError so callers can dismiss a transient failure banner', async () => {

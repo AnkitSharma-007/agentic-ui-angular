@@ -1,4 +1,4 @@
-import { Service, computed, signal } from '@angular/core';
+import { Service, computed, inject, signal } from '@angular/core';
 import {
   DecryptionFailedError,
   EncryptedPayloadV1,
@@ -11,6 +11,8 @@ import {
   isSupportedEncryptedPayload,
 } from '../crypto/webcrypto.helpers';
 import { deleteSessionKek, getSessionKek, putSessionKek } from '../crypto/session-key-store';
+import { LoggerService } from '../logging/logger.service';
+import { StorageError } from '../errors/app-error';
 
 export type KeyStorage = 'session' | 'encrypted-local';
 
@@ -27,6 +29,7 @@ const LOCAL_STORAGE_KEY = 'agentic-ui.api-key.encrypted';
 // a passphrase to unlock on subsequent loads).
 @Service()
 export class ApiKeyService {
+  private readonly logger = inject(LoggerService);
   private readonly _key = signal<string | null>(null);
   private readonly _storage = signal<KeyStorage>('session');
 
@@ -66,8 +69,13 @@ export class ApiKeyService {
       // Pre-v2 plaintext: adopt it and upgrade to an encrypted envelope.
       const legacy = this.readLegacyPlaintext();
       if (legacy) await this.setForSession(legacy);
-    } catch {
-      // Storage unavailable / unexpected shape — start with no session key.
+    } catch (err) {
+      // Storage unavailable / unexpected shape — start with no session key. Not
+      // user-facing (onboarding will show), but logged for diagnostics.
+      this.logger.debug('Could not restore a session API key.', {
+        category: 'storage',
+        error: err,
+      });
     }
   }
 
@@ -83,7 +91,16 @@ export class ApiKeyService {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(payload));
       this.hasLockedBlob.set(true);
     } catch (err) {
-      throw new Error('Failed to write encrypted key to localStorage.', { cause: err });
+      this.logger.warn('Failed to write the encrypted key to localStorage.', {
+        category: 'storage',
+        error: err,
+      });
+      throw new StorageError({
+        code: 'local_write_failed',
+        userMessage: 'Could not save your key to this browser. Storage may be full or disabled.',
+        technicalMessage: 'Failed to write encrypted key to localStorage.',
+        cause: err,
+      });
     }
     await this.clearSessionPersistence();
     this._key.set(key);
@@ -126,7 +143,13 @@ export class ApiKeyService {
       );
       safeWrite(() => sessionStorage.removeItem(LEGACY_SESSION_KEY));
       this.setSessionPersistenceFailed(!wrote);
-    } catch {
+    } catch (err) {
+      // WebCrypto/IndexedDB unavailable — fall back to best-effort plaintext so
+      // the key still survives a reload where possible.
+      this.logger.debug('Session key encryption unavailable; using plaintext fallback.', {
+        category: 'storage',
+        error: err,
+      });
       const wrote = safeWrite(() => sessionStorage.setItem(LEGACY_SESSION_KEY, key));
       safeWrite(() => sessionStorage.removeItem(SESSION_ENVELOPE_KEY));
       await deleteSessionKek().catch(() => undefined);
@@ -137,8 +160,9 @@ export class ApiKeyService {
   private setSessionPersistenceFailed(failed: boolean): void {
     this._sessionPersistenceFailed.set(failed);
     if (failed) {
-      console.warn(
-        '[api-key] Could not persist the session key to sessionStorage; it will not survive a reload.',
+      this.logger.warn(
+        'Could not persist the session key to sessionStorage; it will not survive a reload.',
+        { category: 'storage' },
       );
     }
   }
