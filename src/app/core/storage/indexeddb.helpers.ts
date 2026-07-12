@@ -45,6 +45,38 @@ export function idbClear(db: IDBDatabase, store: string): Promise<void> {
   return run(db, store, 'readwrite', (s) => s.clear());
 }
 
+// Multi-store atomic writes. IndexedDB commits a transaction as a unit, so
+// putting a full record and its lightweight summary (or deleting both) in one
+// transaction keeps the two stores from drifting if the tab dies mid-write.
+export function idbPutMany(
+  db: IDBDatabase,
+  ops: ReadonlyArray<{ readonly store: string; readonly value: unknown }>,
+): Promise<void> {
+  const stores = [...new Set(ops.map((o) => o.store))];
+  return runTx(db, stores, 'readwrite', (tx) => {
+    for (const op of ops) tx.objectStore(op.store).put(op.value as IDBValidKey);
+  });
+}
+
+export function idbDeleteMany(
+  db: IDBDatabase,
+  ops: ReadonlyArray<{ readonly store: string; readonly key: IDBValidKey }>,
+): Promise<void> {
+  const stores = [...new Set(ops.map((o) => o.store))];
+  return runTx(db, stores, 'readwrite', (tx) => {
+    for (const op of ops) tx.objectStore(op.store).delete(op.key);
+  });
+}
+
+export function idbClearStores(
+  db: IDBDatabase,
+  stores: readonly string[],
+): Promise<void> {
+  return runTx(db, stores, 'readwrite', (tx) => {
+    for (const store of stores) tx.objectStore(store).clear();
+  });
+}
+
 function run<T>(
   db: IDBDatabase,
   storeName: string,
@@ -59,5 +91,22 @@ function run<T>(
     request.onerror = () => reject(request.error ?? new Error(`IDB ${mode} failed.`));
     tx.onerror = () => reject(tx.error ?? new Error(`IDB ${mode} txn failed.`));
     tx.onabort = () => reject(tx.error ?? new Error(`IDB ${mode} txn aborted.`));
+  });
+}
+
+// Resolve once the whole transaction commits (not per-request), so a batch of
+// writes across several stores is reported as a single success/failure.
+function runTx(
+  db: IDBDatabase,
+  storeNames: readonly string[],
+  mode: IDBTransactionMode,
+  body: (tx: IDBTransaction) => void,
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction([...storeNames], mode);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error ?? new Error(`IDB ${mode} txn failed.`));
+    tx.onabort = () => reject(tx.error ?? new Error(`IDB ${mode} txn aborted.`));
+    body(tx);
   });
 }

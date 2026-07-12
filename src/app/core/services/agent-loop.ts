@@ -381,10 +381,19 @@ async function* settleRoundToolCalls(
   }
 
   deps.store.appendToolResponses(
-    toolCalls.map((call) => ({
-      name: call.name,
-      response: settled.get(call.callId)!.responseForModel,
-    })),
+    toolCalls.map((call) => {
+      // Every call is settled by the loop above, but guard the lookup instead of
+      // asserting non-null: if a call somehow never settled (e.g. torn down
+      // mid-abort) we still send the model a well-formed error part rather than
+      // crashing the turn on `undefined.responseForModel` (N4).
+      const item = settled.get(call.callId);
+      return {
+        name: call.name,
+        response: item?.responseForModel ?? {
+          error: 'Tool call did not produce a result.',
+        },
+      };
+    }),
   );
 }
 

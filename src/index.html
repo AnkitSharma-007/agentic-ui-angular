@@ -14,37 +14,18 @@
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Plain stylesheet links (no inline onload swap) so the strict CSP shipped
+         in the production index (src/index.prod.html) can forbid inline script.
+         Icon font uses display=block, not swap: an unloaded icon font would
+         otherwise flash its raw ligature words ("arrow_upward", "mic", …). -->
     <link
-      rel="preload"
-      as="style"
+      rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
-      onload="
-        this.onload = null;
-        this.rel = 'stylesheet';
-      "
     />
-    <!-- Icon font uses display=block, not swap: an unloaded icon font would
-         otherwise flash its raw ligature words ("arrow_upward", "mic", …). block
-         renders nothing for a short period, then the glyphs — no ugly FOUT. -->
     <link
-      rel="preload"
-      as="style"
+      rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=block"
-      onload="
-        this.onload = null;
-        this.rel = 'stylesheet';
-      "
     />
-    <noscript>
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
-      />
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=block"
-      />
-    </noscript>
   </head>
   <body>
     <app-root></app-root>

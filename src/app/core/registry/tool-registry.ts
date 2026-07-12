@@ -15,6 +15,12 @@ export class ToolRegistry {
   private readonly _loadedNames = signal<readonly string[]>([]);
   private readonly _failedNames = signal<readonly string[]>([]);
 
+  // L15: `list()`/`declarations()` are read once per agent round to build the
+  // tool payload. Cache the derived arrays and invalidate only when the manifest
+  // set changes, so a multi-round turn doesn't re-spread the Map every round.
+  private listCache: readonly ToolMeta[] | null = null;
+  private declarationsCache: readonly FunctionDeclaration[] | null = null;
+
   readonly loadedNames = this._loadedNames.asReadonly();
   readonly failedNames = this._failedNames.asReadonly();
   readonly loadedCount = computed(() => this._loadedNames().length);
@@ -28,6 +34,7 @@ export class ToolRegistry {
       throw new Error(`Tool already registered: ${manifest.name}`);
     }
     this.manifests.set(manifest.name, manifest as ToolManifest);
+    this.invalidateListCache();
   }
 
   upsert<TArgs, TResult>(manifest: ToolManifest<TArgs, TResult>): void {
@@ -36,6 +43,7 @@ export class ToolRegistry {
     this.loading.delete(manifest.name);
     this._loadedNames.update((list) => list.filter((n) => n !== manifest.name));
     this._failedNames.update((list) => list.filter((n) => n !== manifest.name));
+    this.invalidateListCache();
   }
 
   unregister(name: string): void {
@@ -44,6 +52,7 @@ export class ToolRegistry {
     this.loading.delete(name);
     this._loadedNames.update((list) => list.filter((n) => n !== name));
     this._failedNames.update((list) => list.filter((n) => n !== name));
+    this.invalidateListCache();
   }
 
   get(name: string): ToolMeta | undefined {
@@ -51,11 +60,16 @@ export class ToolRegistry {
   }
 
   list(): readonly ToolMeta[] {
-    return [...this.manifests.values()];
+    return (this.listCache ??= [...this.manifests.values()]);
   }
 
   declarations(): readonly FunctionDeclaration[] {
-    return this.list().map((t) => t.declaration);
+    return (this.declarationsCache ??= this.list().map((t) => t.declaration));
+  }
+
+  private invalidateListCache(): void {
+    this.listCache = null;
+    this.declarationsCache = null;
   }
 
   componentFor(name: string): Type<unknown> | null {

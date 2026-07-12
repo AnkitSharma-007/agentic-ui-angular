@@ -12,6 +12,13 @@ export const REPLAY_WARN_BYTES = 3 * 1024 * 1024; // ~3 MB of encoded payload
 // storage budget.
 export const REPLAY_MAX_BYTES = 12 * 1024 * 1024; // ~12 MB of encoded payload
 
+// Library-wide caps (N7). Without a ceiling the replay store grows unbounded
+// across a long-lived demo profile until it trips IndexedDB's origin quota and
+// saves start failing. On save we evict the oldest runs (LRU by savedAt) until
+// both the count and the total encoded size are back under budget.
+export const MAX_REPLAY_COUNT = 50;
+export const MAX_TOTAL_REPLAY_BYTES = 60 * 1024 * 1024; // ~60 MB across all runs
+
 // Approximate the encoded size of a run by summing text and inline-media
 // payloads. base64 chars map ~1:1 to bytes for this rough purpose.
 export function estimateReplayBytes(rawHistory: readonly HistoryContent[]): number {

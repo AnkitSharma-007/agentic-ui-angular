@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Atlas: Agents that build their own UI</title>
+    <base href="/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      Production-only Content-Security-Policy (N1). Kept out of src/index.html so
+      the dev server's live-reload tooling is unaffected; angular.json wires this
+      file in via the `production` build configuration's `index` override.
+
+      The whole threat model here is "XSS steals the user's BYOK Gemini key", so
+      `script-src 'self'` (no 'unsafe-inline'/'unsafe-eval') and a tight
+      `connect-src` are the load-bearing directives — a script injected via a
+      poisoned tool response or markdown cannot execute or beacon the key out.
+
+      `style-src 'unsafe-inline'` is required because Angular Material/CDK and
+      Leaflet set inline styles at runtime; inline styles cannot exfiltrate data
+      the way inline script can, so this is an acceptable trade-off.
+
+      Note: `frame-ancestors`, `report-uri`, and `sandbox` are ignored in a meta
+      tag — set those (plus HSTS) as real response headers at the CDN/host.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'self';
+        script-src 'self';
+        style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+        font-src 'self' https://fonts.gstatic.com;
+        img-src 'self' data: blob: https://*.tile.openstreetmap.org;
+        media-src 'self' data: blob:;
+        connect-src 'self' https://generativelanguage.googleapis.com;
+        object-src 'none';
+        base-uri 'self';
+        form-action 'self';
+      "
+    />
+    <meta
+      name="description"
+      content="Atlas: an agentic UI where Gemini's tool calls render interactive Angular components in real time. Bring your own key."
+    />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#0b0d12" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Plain stylesheet links (no inline onload swap) so `script-src 'self'`
+         above can forbid inline script. Icon font uses display=block, not swap:
+         an unloaded icon font would otherwise flash its raw ligature words. -->
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=block"
+    />
+  </head>
+  <body>
+    <app-root></app-root>
+  </body>
+</html>

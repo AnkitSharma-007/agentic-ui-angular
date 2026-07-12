@@ -204,17 +204,21 @@ describe('ReplayService', () => {
     expect(service.lastError()).not.toBeNull();
   });
 
-  it('refresh() drops corrupt/tampered rows so one bad payload cannot crash the list', async () => {
+  it('refresh() drops corrupt/tampered rows so one bad summary cannot crash the list', async () => {
     await service.save(makePayload({ id: 'valid', savedAt: '2026-05-15T08:00:00.000Z' }));
 
-    // Seed a poisoned row directly (bypassing save()'s typed path). It lacks the
-    // required fields, so it must never reach toSummary/byDateDesc.
-    const db = await openDb('agentic-ui-angular', 1, (d) => {
+    // Seed a poisoned summary directly (bypassing save()'s typed path). It lacks
+    // required fields, so it must never reach byDateDesc. Open at the service's
+    // current version and mirror both stores so we don't downgrade the DB.
+    const db = await openDb('agentic-ui-angular', 2, (d) => {
       if (!d.objectStoreNames.contains('replays')) {
         d.createObjectStore('replays', { keyPath: 'id' });
       }
+      if (!d.objectStoreNames.contains('summaries')) {
+        d.createObjectStore('summaries', { keyPath: 'id' });
+      }
     });
-    await idbPut(db, 'replays', { id: 'corrupt', schemaVersion: 1, title: 'oops' });
+    await idbPut(db, 'summaries', { id: 'corrupt', title: 'oops' });
 
     const summaries = await service.refresh();
 

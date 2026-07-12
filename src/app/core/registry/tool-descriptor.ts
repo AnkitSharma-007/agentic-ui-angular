@@ -31,6 +31,10 @@ export interface ToolMeta {
   readonly declaration: FunctionDeclaration;
   readonly interruptive?: boolean;
   readonly interruptReason?: string;
+  // A singleton tool renders a single, replaceable card: when the agent calls it
+  // more than once in a turn, only the latest (non-failed) instance is shown.
+  // Declared here so the UI doesn't have to hard-code tool names (N4).
+  readonly singleton?: boolean;
 }
 
 export interface ToolManifest<TArgs = unknown, TResult = unknown> extends ToolMeta {

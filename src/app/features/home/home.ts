@@ -123,7 +123,10 @@ export class HomeComponent implements OnInit {
   protected readonly responseText = this.store.responseText;
   protected readonly toolCalls = this.store.toolCalls;
   protected readonly displayedToolCalls = computed(() =>
-    dedupeIdempotent(this.toolCalls(), 'renderItinerary'),
+    collapseSingletonCards(
+      this.toolCalls(),
+      (name) => this.registry.get(name)?.singleton ?? false,
+    ),
   );
   protected readonly errorMessage = this.store.error;
   protected readonly stats = this.store.stats;
@@ -256,6 +259,7 @@ export class HomeComponent implements OnInit {
   protected reset(): void {
     this.cancel$.next();
     if (this.isRecording()) this.stopRecording();
+    this.inputsCache.clear();
     this.store.reset();
     this.agents.resetForNewTurn();
     this.tokenAccountant.clearLifetime();
@@ -298,15 +302,53 @@ export class HomeComponent implements OnInit {
       });
   }
 
+  // L15: NgComponentOutlet re-applies `inputs` whenever this returns a new
+  // object reference. The store hands out a fresh ToolCallState only when a call
+  // actually changes, so cache the built inputs per callId and reuse the same
+  // object (by reference) while the underlying fields are unchanged — avoiding a
+  // needless input re-application on every unrelated change-detection pass.
+  private readonly inputsCache = new Map<
+    string,
+    {
+      readonly args: unknown;
+      readonly result: unknown;
+      readonly status: ToolCallState['status'];
+      readonly errorMessage: string | null;
+      readonly interruptReason: string | null;
+      readonly value: Record<string, unknown>;
+    }
+  >();
+
   protected inputsFor(call: ToolCallState): Record<string, unknown> {
-    return {
+    const interruptReason = call.interruptReason ?? null;
+    const cached = this.inputsCache.get(call.callId);
+    if (
+      cached &&
+      cached.args === call.args &&
+      cached.result === call.result &&
+      cached.status === call.status &&
+      cached.errorMessage === call.errorMessage &&
+      cached.interruptReason === interruptReason
+    ) {
+      return cached.value;
+    }
+    const value: Record<string, unknown> = {
       callId: call.callId,
       args: call.args,
       result: call.result,
       status: call.status,
       errorMessage: call.errorMessage,
-      interruptReason: call.interruptReason ?? null,
+      interruptReason,
     };
+    this.inputsCache.set(call.callId, {
+      args: call.args,
+      result: call.result,
+      status: call.status,
+      errorMessage: call.errorMessage,
+      interruptReason,
+      value,
+    });
+    return value;
   }
 
   protected send(): void {
@@ -667,25 +709,34 @@ function sliceCurrentTurnHistory(
   return history;
 }
 
-function dedupeIdempotent(
+// Collapse repeated calls to a "singleton" tool (one declaring `singleton: true`
+// in its manifest, e.g. the itinerary map) down to a single card: the latest
+// instance, preferring a non-failed one over a failed/rejected one. Which tools
+// are singletons is driven by the registry, so no tool name is hard-coded here
+// (N4). Non-singleton tools pass through untouched.
+function collapseSingletonCards(
   calls: readonly ToolCallState[],
-  idempotentName: string,
+  isSingleton: (name: string) => boolean,
 ): readonly ToolCallState[] {
-  let keep: ToolCallState | null = null;
+  const winners = new Map<string, ToolCallState>();
+  let hasSingleton = false;
   for (const call of calls) {
-    if (call.name !== idempotentName) continue;
-    if (!keep) {
-      keep = call;
+    if (!isSingleton(call.name)) continue;
+    hasSingleton = true;
+    const kept = winners.get(call.name);
+    if (!kept) {
+      winners.set(call.name, call);
       continue;
     }
-    const keepFailed = keep.status === 'error' || keep.status === 'rejected';
+    const keptFailed = kept.status === 'error' || kept.status === 'rejected';
     const candFailed = call.status === 'error' || call.status === 'rejected';
-    if (keepFailed && !candFailed) keep = call;
-    else if (keepFailed === candFailed) keep = call;
+    if (keptFailed && !candFailed) winners.set(call.name, call);
+    else if (keptFailed === candFailed) winners.set(call.name, call);
   }
-  if (!keep) return calls;
-  const droppedKeep = keep;
-  return calls.filter((c) => c.name !== idempotentName || c.callId === droppedKeep.callId);
+  if (!hasSingleton) return calls;
+  return calls.filter(
+    (c) => !isSingleton(c.name) || winners.get(c.name)?.callId === c.callId,
+  );
 }
 
 const TOUR_DISMISSED_KEY = 'atlas.tour.dismissed';

@@ -60,6 +60,24 @@ export function toSummary(p: ReplayPayload): ReplaySummary {
 const eventShape = z.object({ type: z.string() });
 const historyShape = z.object({ parts: z.array(z.unknown()) });
 
+const replaySummarySchema = z.object({
+  id: z.string().min(1),
+  title: z.string(),
+  savedAt: z.string().min(1),
+  prompt: z.string(),
+  model: z.string(),
+  durationMs: z.number(),
+  eventCount: z.number(),
+  sizeBytes: z.number().optional(),
+});
+
+// The summary store is written from the typed `save()` path, but IndexedDB is
+// user-controlled — validate rows on read so a tampered summary can't crash the
+// Library list (e.g. an undefined `savedAt` throwing in `byDateDesc`).
+export function isValidReplaySummary(value: unknown): value is ReplaySummary {
+  return replaySummarySchema.safeParse(value).success;
+}
+
 const replayPayloadSchema = z.object({
   schemaVersion: z.literal(1),
   id: z.string().min(1),
