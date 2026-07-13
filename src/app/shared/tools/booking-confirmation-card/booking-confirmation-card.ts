@@ -12,6 +12,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { InterruptService } from '../../../core/registry/interrupt.service';
+import { formatCurrency } from '../../formatting/format';
 import type { BookFlightArgs, BookFlightResult } from './booking-confirmation-card.types';
 
 @Component({
@@ -61,11 +62,5 @@ export class BookingConfirmationCardComponent {
     this.interrupts.decide(this.callId(), { kind: 'reject', note: note || undefined });
   }
 
-  protected formatPrice(amount: number, currency: string): string {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  }
+  protected readonly formatPrice = formatCurrency;
 }

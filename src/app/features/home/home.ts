@@ -54,6 +54,7 @@ import {
   replaySizeWarning,
 } from '../../core/replay/replay-size';
 import { isValidReplayPayload } from '../../core/replay/replay.types';
+import { prefixedId } from '../../core/utils/id';
 import { OnboardingComponent } from '../onboarding/onboarding';
 import { ThoughtComponent } from '../../shared/thought/thought';
 import { MarkdownComponent } from '../../shared/markdown/markdown';
@@ -355,7 +356,7 @@ export class HomeComponent implements OnInit {
     this.cancel$.next();
     const text = this.prompt().trim();
     const attachments = this.attachments();
-    const turnId = newTurnId();
+    const turnId = prefixedId('turn');
 
     this.lastPrompt.set(text);
     this.saveStatus.set('idle');
@@ -551,7 +552,7 @@ export class HomeComponent implements OnInit {
 
       await this.replays.save({
         schemaVersion: 1,
-        id: newReplayId(),
+        id: prefixedId('replay'),
         title: deriveTitle(this.lastPrompt()),
         savedAt: new Date().toISOString(),
         prompt: this.lastPrompt(),
@@ -630,7 +631,7 @@ export class HomeComponent implements OnInit {
       // Pre-warm lazy descriptors — replay never calls registry.execute().
       await this.preloadToolDescriptors(payload.events);
 
-      const turnId = newTurnId();
+      const turnId = prefixedId('turn');
       this.store.beginTurn(turnId, 'replaying');
       this.store.loadRawHistory(payload.rawHistory);
 
@@ -693,14 +694,6 @@ export class HomeComponent implements OnInit {
       });
     }
   }
-}
-
-function newTurnId(): string {
-  return `turn-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function newReplayId(): string {
-  return `replay-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function deriveTitle(prompt: string): string {

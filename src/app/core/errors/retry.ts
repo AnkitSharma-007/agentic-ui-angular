@@ -1,5 +1,8 @@
 import { normalizeError } from './normalize-error';
 import type { AppError } from './app-error';
+import { abortableSleep } from '../async/abortable-delay';
+
+export { abortableSleep };
 
 // Bounded retry with exponential backoff+jitter for setup failures only — never mid-stream (would duplicate output/re-bill).
 // Conservative: only retryable errors retried, aborts never, signal-aware backoff sleep.
@@ -55,30 +58,4 @@ export async function retryWithBackoff<T>(
 // retry in lockstep.
 function applyJitter(delayMs: number): number {
   return Math.round(delayMs * (0.5 + Math.random() * 0.5));
-}
-
-// A `setTimeout` wrapped as a promise that rejects (AbortError) the moment the
-// signal fires, and always clears its timer/listener so nothing leaks.
-export function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> {
-  if (signal?.aborted) {
-    return Promise.reject(new DOMException('Aborted', 'AbortError'));
-  }
-  return new Promise<void>((resolve, reject) => {
-    let onAbort: (() => void) | null = null;
-    const done = () => {
-      if (onAbort && signal) signal.removeEventListener('abort', onAbort);
-    };
-    const timer = setTimeout(() => {
-      done();
-      resolve();
-    }, ms);
-    if (signal) {
-      onAbort = () => {
-        clearTimeout(timer);
-        done();
-        reject(new DOMException('Aborted', 'AbortError'));
-      };
-      signal.addEventListener('abort', onAbort, { once: true });
-    }
-  });
 }

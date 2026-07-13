@@ -8,6 +8,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { ReplayService } from '../../core/replay/replay.service';
 import type { ReplaySummary } from '../../core/replay/replay.types';
 import { REPLAY_WARN_BYTES } from '../../core/replay/replay-size';
+import { formatBytes, formatElapsedMs } from '../../shared/formatting/format';
 import { PageHeaderComponent } from '../../shared/page-header/page-header';
 
 @Component({
@@ -106,14 +107,7 @@ export class LibraryComponent implements OnInit {
     this.replays.clearError();
   }
 
-  protected formatDuration(ms: number): string {
-    if (ms < 1000) return `${ms} ms`;
-    const seconds = ms / 1000;
-    if (seconds < 60) return `${seconds.toFixed(1)} s`;
-    const minutes = Math.floor(seconds / 60);
-    const remainder = Math.round(seconds - minutes * 60);
-    return `${minutes}m ${remainder}s`;
-  }
+  protected readonly formatDuration = formatElapsedMs;
 
   protected formatSavedAt(iso: string): string {
     const d = new Date(iso);
@@ -123,12 +117,7 @@ export class LibraryComponent implements OnInit {
     }).format(d);
   }
 
-  protected formatSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    const kb = bytes / 1024;
-    if (kb < 1024) return `${Math.round(kb)} KB`;
-    return `${(kb / 1024).toFixed(1)} MB`;
-  }
+  protected readonly formatSize = formatBytes;
 
   // Flag runs past the soft save cap so users know replay may load slowly.
   protected isLargeReplay(bytes: number | undefined): boolean {

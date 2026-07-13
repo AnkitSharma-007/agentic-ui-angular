@@ -3,6 +3,7 @@ import { z, type ZodType } from 'zod';
 import type { ToolDescriptor } from '../registry/tool-descriptor';
 import { specToDeclaration } from './custom-tool-declaration';
 import { applyResponseTemplate, type CustomToolSpec } from './custom-tool.types';
+import { abortableSleep } from '../async/abortable-delay';
 
 const TYPE_TO_ZOD: Record<'string' | 'number' | 'boolean', () => ZodType<unknown>> = {
   string: () => z.string(),
@@ -47,5 +48,5 @@ function specToSchema(spec: CustomToolSpec): ZodType<unknown> {
 }
 
 function simulatedLatency(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 400 + Math.random() * 400));
+  return abortableSleep(400 + Math.random() * 400);
 }

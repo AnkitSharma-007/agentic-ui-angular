@@ -1,13 +1,6 @@
-import {
-  Component,
-  DestroyRef,
-  computed,
-  effect,
-  inject,
-  input,
-  signal,
-} from '@angular/core';
+import { Component, computed, input } from '@angular/core';
 import { Marked, type Tokens } from 'marked';
+import { coalesceWithRaf } from '../util/raf-coalesce';
 
 function escapeHtml(value: string): string {
   return value
@@ -59,33 +52,6 @@ export class MarkdownComponent {
   readonly source = input.required<string>();
 
   // rAF-coalesced source commits avoid O(n²) re-parsing on every streaming token.
-  private readonly throttledSource = signal<string>('');
+  private readonly throttledSource = coalesceWithRaf(() => this.source(), '');
   protected readonly rendered = computed<string>(() => renderMarkdown(this.throttledSource()));
-
-  constructor() {
-    // First tick is synchronous so initial mount + tests render immediately.
-    let synchronous = true;
-    let rafHandle: number | null = null;
-
-    effect(() => {
-      const src = this.source();
-      if (synchronous) {
-        synchronous = false;
-        this.throttledSource.set(src);
-        return;
-      }
-      if (rafHandle !== null) return;
-      rafHandle = requestAnimationFrame(() => {
-        rafHandle = null;
-        this.throttledSource.set(this.source());
-      });
-    });
-
-    inject(DestroyRef).onDestroy(() => {
-      if (rafHandle !== null) {
-        cancelAnimationFrame(rafHandle);
-        rafHandle = null;
-      }
-    });
-  }
 }

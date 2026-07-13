@@ -5,6 +5,7 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import type { ToolCallStatus } from '../../../core/streaming/agent-event.store';
+import { formatCurrency } from '../../formatting/format';
 import type { SearchHotelsArgs, SearchHotelsResult } from './hotel-options-card.types';
 
 @Component({
@@ -42,13 +43,7 @@ export class HotelOptionsCardComponent {
     return `${a.city} · ${a.checkIn} → ${a.checkOut} · ${a.guests} guest${a.guests === 1 ? '' : 's'}${veg}`;
   });
 
-  protected formatPrice(amount: number, currency: string): string {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  }
+  protected readonly formatPrice = formatCurrency;
 
   protected formatRating(rating: number): string {
     return rating.toFixed(1);

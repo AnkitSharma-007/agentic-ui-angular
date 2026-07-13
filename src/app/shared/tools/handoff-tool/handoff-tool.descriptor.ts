@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { ToolDescriptor } from '../../../core/registry/tool-descriptor';
+import { abortableSleep } from '../../../core/async/abortable-delay';
 import { isKnownAgentId, KNOWN_AGENT_IDS } from '../../../core/agents/agent-definitions';
 import { HandoffNoticeComponent } from './handoff-notice';
 import { handoffToManifest, HANDOFF_TOOL_NAME } from './handoff-tool.manifest';
@@ -35,7 +36,7 @@ export const handoffToDescriptor: ToolDescriptor<HandoffArgs, HandoffResult> = {
       const known = [...KNOWN_AGENT_IDS].join(', ');
       return { error: `Unknown specialist "${args.specialist}". Available specialists: ${known}.` };
     }
-    await new Promise((r) => setTimeout(r, 250));
+    await abortableSleep(250);
     return { acknowledged: true, toAgentId: args.specialist, reason: args.reason };
   },
 };

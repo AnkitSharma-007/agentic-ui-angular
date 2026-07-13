@@ -6,6 +6,7 @@ import { specToDeclaration } from './custom-tool-declaration';
 import { MAX_CUSTOM_TOOLS, isValidCustomToolSpec, type CustomToolSpec } from './custom-tool.types';
 import { LoggerService } from '../logging/logger.service';
 import { normalizeStorageError } from '../errors/normalize-error';
+import { randomUuid } from '../utils/id';
 
 const DB_NAME = 'atlas-custom-tools';
 const DB_VERSION = 1;
@@ -73,7 +74,7 @@ export class CustomToolsService {
 
   finalizeDraft(draft: Omit<CustomToolSpec, 'id' | 'createdAt' | 'updatedAt'>): CustomToolSpec {
     const now = Date.now();
-    return { ...draft, id: randomId(), createdAt: now, updatedAt: now };
+    return { ...draft, id: randomUuid(), createdAt: now, updatedAt: now };
   }
 
   // Session-only registration when persistence is unavailable — skips IndexedDB.
@@ -150,11 +151,4 @@ export class CustomToolsService {
 
 function byCreatedDesc(a: CustomToolSpec, b: CustomToolSpec): number {
   return b.createdAt - a.createdAt;
-}
-
-function randomId(): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID();
-  }
-  return `tool_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }

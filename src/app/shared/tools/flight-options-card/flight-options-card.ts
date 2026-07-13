@@ -4,6 +4,7 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import type { ToolCallStatus } from '../../../core/streaming/agent-event.store';
+import { formatCurrency } from '../../formatting/format';
 import type { SearchFlightsArgs, SearchFlightsResult } from './flight-options-card.types';
 
 @Component({
@@ -43,11 +44,5 @@ export class FlightOptionsCardComponent {
     return h > 0 ? `${h}h ${m}m` : `${m}m`;
   }
 
-  protected formatPrice(amount: number, currency: string): string {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  }
+  protected readonly formatPrice = formatCurrency;
 }

@@ -1,21 +1,9 @@
 /** Shared mock-executor helpers; all respect the abort signal from the agent loop. */
 
+import { abortableSleep } from '../../core/async/abortable-delay';
+
 export function wait(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal.aborted) {
-      reject(new DOMException('Aborted', 'AbortError'));
-      return;
-    }
-    const timeout = setTimeout(() => {
-      signal.removeEventListener('abort', onAbort);
-      resolve();
-    }, ms);
-    const onAbort = () => {
-      clearTimeout(timeout);
-      reject(new DOMException('Aborted', 'AbortError'));
-    };
-    signal.addEventListener('abort', onAbort, { once: true });
-  });
+  return abortableSleep(ms, signal);
 }
 
 export function hashString(input: string): number {

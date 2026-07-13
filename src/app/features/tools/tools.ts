@@ -1,11 +1,4 @@
-import {
-  Component,
-  DestroyRef,
-  computed,
-  effect,
-  inject,
-  signal,
-} from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { applyEach, form, validate, FormField } from '@angular/forms/signals';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -25,6 +18,8 @@ import {
   type CustomToolSpec,
 } from '../../core/custom-tools/custom-tool.types';
 import { PageHeaderComponent } from '../../shared/page-header/page-header';
+import { coalesceWithRaf } from '../../shared/util/raf-coalesce';
+import { randomUuid } from '../../core/utils/id';
 
 interface DraftParameter {
   name: string;
@@ -112,38 +107,18 @@ export class ToolsComponent {
   );
 
   // rAF-coalesced mirrors so keystrokes don't re-run applyResponseTemplate + JSON.stringify each char.
-  private readonly debouncedParameters = signal<readonly DraftParameter[]>([]);
-  private readonly debouncedTemplate = signal(DEFAULT_TEMPLATE);
-
-  constructor() {
-    // First tick is synchronous so initial state settles before the test's first read.
-    let synchronous = true;
-    let rafHandle: number | null = null;
-
-    effect(() => {
-      const { responseTemplate: tpl, parameters: params } = this.builderModel();
-      if (synchronous) {
-        synchronous = false;
-        this.debouncedTemplate.set(tpl);
-        this.debouncedParameters.set(params);
-        return;
-      }
-      if (rafHandle !== null) return;
-      rafHandle = requestAnimationFrame(() => {
-        rafHandle = null;
-        const model = this.builderModel();
-        this.debouncedTemplate.set(model.responseTemplate);
-        this.debouncedParameters.set(model.parameters);
-      });
-    });
-
-    inject(DestroyRef).onDestroy(() => {
-      if (rafHandle !== null) {
-        cancelAnimationFrame(rafHandle);
-        rafHandle = null;
-      }
-    });
-  }
+  private readonly debouncedModel = coalesceWithRaf(
+    () => {
+      const m = this.builderModel();
+      return {
+        responseTemplate: m.responseTemplate,
+        parameters: m.parameters as readonly DraftParameter[],
+      };
+    },
+    { responseTemplate: DEFAULT_TEMPLATE, parameters: [] as readonly DraftParameter[] },
+  );
+  private readonly debouncedParameters = computed(() => this.debouncedModel().parameters);
+  private readonly debouncedTemplate = computed(() => this.debouncedModel().responseTemplate);
 
   protected readonly templatePreview = computed<{ ok: boolean; text: string }>(() => {
     const args: Record<string, unknown> = {};
@@ -224,7 +199,7 @@ export class ToolsComponent {
     this.saveError.set(null);
     try {
       const model = this.builderModel();
-      const id = this.editingId() ?? randomId();
+      const id = this.editingId() ?? randomUuid();
       const now = Date.now();
       const spec: CustomToolSpec = {
         id,
@@ -293,13 +268,6 @@ export class ToolsComponent {
     this.saveError.set(null);
     this.justSaved.set(null);
   }
-}
-
-function randomId(): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID();
-  }
-  return `tool_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function sampleValue(type: CustomToolParameterType): unknown {

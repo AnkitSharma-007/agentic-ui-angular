@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { ToolDescriptor } from '../../../core/registry/tool-descriptor';
+import { abortableSleep } from '../../../core/async/abortable-delay';
 import { ActivityListComponent } from './activity-list';
 import { findActivitiesManifest, FIND_ACTIVITIES_TOOL_NAME } from './find-activities.manifest';
 
@@ -275,7 +276,7 @@ export const findActivitiesDescriptor: ToolDescriptor<
 };
 
 function simulatedSearchLatency(): Promise<void> {
-  return new Promise((r) => setTimeout(r, 900 + Math.random() * 600));
+  return abortableSleep(900 + Math.random() * 600);
 }
 
 function filterByInterests(
