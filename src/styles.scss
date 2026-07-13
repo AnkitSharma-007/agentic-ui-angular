@@ -324,7 +324,21 @@ textarea:focus-visible {
   }
 }
 
+// Global reduced-motion safety net: neutralise animations/transitions app-wide
+// for users who request less motion (WCAG 2.3.3), then keep targeted rules for
+// nuance. Catches components that lack their own reduced-motion guard
+// (cost-meter pulses, observability waterfall, home "thinking" bars, etc.).
 @media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
   .pulse-dot {
     animation: none;
   }
