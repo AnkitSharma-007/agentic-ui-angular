@@ -1,0 +1,22 @@
+<mat-card appearance="outlined" class="card op-error-card" role="alert">
+  <mat-card-content>
+    <div class="op-error-row">
+      <span class="op-error-icon" aria-hidden="true">
+        <mat-icon>error_outline</mat-icon>
+      </span>
+      <div class="op-error-text">
+        <strong>Action failed.</strong>
+        <span>{{ message() }}</span>
+      </div>
+      <button
+        mat-icon-button
+        type="button"
+        class="op-error-dismiss"
+        aria-label="Dismiss error"
+        (click)="dismiss.emit()"
+      >
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+  </mat-card-content>
+</mat-card>

@@ -1,0 +1,13 @@
+<mat-card appearance="outlined" class="card dive-card">
+  <mat-card-content>
+    <span class="dive-icon" aria-hidden="true">
+      <span class="material-symbols-outlined">{{ dive().icon }}</span>
+    </span>
+    <h3>{{ dive().title }}</h3>
+    <p>{{ dive().body }}</p>
+    <a mat-stroked-button [routerLink]="dive().link">
+      {{ dive().cta }}
+      <span class="material-symbols-outlined" aria-hidden="true">arrow_outward</span>
+    </a>
+  </mat-card-content>
+</mat-card>

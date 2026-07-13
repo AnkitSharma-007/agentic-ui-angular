@@ -1,0 +1,48 @@
+<mat-card appearance="outlined" class="card step-card">
+  <mat-card-content>
+    <div class="step-head">
+      <span class="step-index" aria-hidden="true">
+        <span class="step-index-num">{{ step().index }}</span>
+        <span class="step-index-label">Step</span>
+      </span>
+      <div class="step-title-wrap">
+        <h2 class="step-title">{{ step().title }}</h2>
+        <p class="step-demo">{{ step().demonstrates }}</p>
+      </div>
+    </div>
+
+    <ul class="step-details">
+      @for (detail of step().details; track detail) {
+        <li>{{ detail }}</li>
+      }
+    </ul>
+
+    @if (step().watchFor; as watchFor) {
+      <p class="watch-for">
+        <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+        <span><strong>Watch for:</strong> {{ watchFor }}</span>
+      </p>
+    }
+
+    <div class="step-actions">
+      @if (step().prompt; as prompt) {
+        <a
+          mat-flat-button
+          color="primary"
+          [routerLink]="['/']"
+          [queryParams]="{ prompt }"
+          class="prompt-link"
+        >
+          <span class="material-symbols-outlined" aria-hidden="true">play_arrow</span>
+          Try this prompt
+        </a>
+      }
+      @if (step().action; as action) {
+        <a mat-stroked-button [routerLink]="action.link">
+          <span class="material-symbols-outlined" aria-hidden="true">arrow_outward</span>
+          {{ action.label }}
+        </a>
+      }
+    </div>
+  </mat-card-content>
+</mat-card>

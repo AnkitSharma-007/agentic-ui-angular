@@ -1,25 +1,27 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
-import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 
 import { ReplayService } from '../../core/replay/replay.service';
 import type { ReplaySummary } from '../../core/replay/replay.types';
-import { REPLAY_WARN_BYTES } from '../../core/replay/replay-size';
-import { formatBytes, formatElapsedMs } from '../../shared/formatting/format';
 import { PageHeaderComponent } from '../../shared/page-header/page-header';
+import { ReplayListItemComponent } from './replay-list-item/replay-list-item';
+import { StorageStateCardComponent } from './storage-state-card/storage-state-card';
+import { OperationErrorBannerComponent } from './operation-error-banner/operation-error-banner';
 
 @Component({
   selector: 'app-library',
   imports: [
     RouterLink,
     MatButtonModule,
-    MatCardModule,
     MatIconModule,
     MatProgressBarModule,
     PageHeaderComponent,
+    ReplayListItemComponent,
+    StorageStateCardComponent,
+    OperationErrorBannerComponent,
   ],
   templateUrl: './library.html',
   styleUrl: './library.scss',
@@ -47,10 +49,7 @@ export class LibraryComponent implements OnInit {
       !this.refreshFailed(),
   );
   protected readonly operationError = computed(
-    () =>
-      this.lastError() !== null &&
-      !this.unavailable() &&
-      !this.refreshFailed(),
+    () => this.lastError() !== null && !this.unavailable() && !this.refreshFailed(),
   );
 
   protected readonly confirmingClear = signal(false);
@@ -64,8 +63,8 @@ export class LibraryComponent implements OnInit {
     void this.router.navigate(['/'], { queryParams: { replay: summary.id } });
   }
 
-  protected async deleteOne(summary: ReplaySummary, event: Event): Promise<void> {
-    event.stopPropagation();
+  protected async deleteOne(summary: ReplaySummary, event?: Event): Promise<void> {
+    event?.stopPropagation();
     if (this.confirmingDelete() !== summary.id) {
       this.confirmingDelete.set(summary.id);
       return;
@@ -80,8 +79,8 @@ export class LibraryComponent implements OnInit {
     }
   }
 
-  protected cancelDelete(event: Event): void {
-    event.stopPropagation();
+  protected cancelDelete(event?: Event): void {
+    event?.stopPropagation();
     this.confirmingDelete.set(null);
   }
 
@@ -105,22 +104,5 @@ export class LibraryComponent implements OnInit {
 
   protected dismissError(): void {
     this.replays.clearError();
-  }
-
-  protected readonly formatDuration = formatElapsedMs;
-
-  protected formatSavedAt(iso: string): string {
-    const d = new Date(iso);
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    }).format(d);
-  }
-
-  protected readonly formatSize = formatBytes;
-
-  // Flag runs past the soft save cap so users know replay may load slowly.
-  protected isLargeReplay(bytes: number | undefined): boolean {
-    return bytes !== undefined && bytes > REPLAY_WARN_BYTES;
   }
 }

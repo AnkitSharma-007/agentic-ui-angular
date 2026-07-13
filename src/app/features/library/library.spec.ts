@@ -27,16 +27,6 @@ describe('LibraryComponent', () => {
     expect(fixture.nativeElement).toBeDefined();
   });
 
-  it('formatDuration handles ms / seconds / minutes', () => {
-    const fixture = TestBed.createComponent(LibraryComponent);
-    const fmt = (fixture.componentInstance as unknown as {
-      formatDuration: (ms: number) => string;
-    }).formatDuration;
-    expect(fmt(150)).toBe('150 ms');
-    expect(fmt(1500)).toBe('1.5 s');
-    expect(fmt(125000)).toMatch(/2m \d+s/);
-  });
-
   it('confirmingDelete / confirmingClear use two-step confirmation', async () => {
     const fixture = TestBed.createComponent(LibraryComponent);
     await fixture.whenStable();

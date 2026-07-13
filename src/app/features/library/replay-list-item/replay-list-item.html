@@ -1,0 +1,57 @@
+<mat-card appearance="outlined" class="card replay-card">
+  <div class="replay-body">
+    <div class="replay-info">
+      <h3 class="replay-title">{{ summary().title }}</h3>
+      <p class="replay-prompt">{{ summary().prompt }}</p>
+      <p class="replay-meta">
+        <span class="meta-chunk">
+          <mat-icon class="meta-icon">schedule</mat-icon>
+          <span>{{ formatSavedAt(summary().savedAt) }}</span>
+        </span>
+        <span class="meta-chunk">
+          <mat-icon class="meta-icon">timer</mat-icon>
+          <span>{{ formatDuration(summary().durationMs) }}</span>
+        </span>
+        <span class="meta-chunk">
+          <mat-icon class="meta-icon">stream</mat-icon>
+          <span>{{ summary().eventCount }} events</span>
+        </span>
+        @if (summary().sizeBytes !== undefined) {
+          <span
+            class="meta-chunk"
+            [class.meta-chunk--warn]="large()"
+            [title]="large() ? 'Large replay — may load slowly' : 'Approximate stored size'"
+          >
+            <mat-icon class="meta-icon">{{ large() ? 'warning' : 'sd_card' }}</mat-icon>
+            <span>{{ formatSize(summary().sizeBytes!) }}</span>
+          </span>
+        }
+        <code class="model">{{ summary().model }}</code>
+      </p>
+    </div>
+
+    <div class="replay-actions">
+      @if (confirming()) {
+        <button mat-stroked-button type="button" (click)="cancelDelete.emit()">Cancel</button>
+        <button mat-flat-button color="warn" type="button" (click)="delete.emit()">
+          <mat-icon>delete_forever</mat-icon>
+          Confirm
+        </button>
+      } @else {
+        <button
+          mat-icon-button
+          type="button"
+          title="Delete saved run"
+          aria-label="Delete saved run"
+          (click)="delete.emit()"
+        >
+          <mat-icon>delete_outline</mat-icon>
+        </button>
+        <button mat-flat-button color="primary" type="button" (click)="play.emit()">
+          <mat-icon>play_arrow</mat-icon>
+          Replay
+        </button>
+      }
+    </div>
+  </div>
+</mat-card>

@@ -1,0 +1,22 @@
+<mat-card
+  appearance="outlined"
+  class="card state-card"
+  [class.state-card--error]="variant() === 'error'"
+  [class.state-card--empty]="variant() === 'empty'"
+>
+  <mat-card-content>
+    <div class="card-head">
+      <span class="card-head-icon" [class.card-head-icon--error]="variant() === 'error'">
+        <mat-icon>{{ icon() }}</mat-icon>
+      </span>
+      <div class="card-head-text">
+        <h3>{{ heading() }}</h3>
+        <ng-content></ng-content>
+      </div>
+    </div>
+    @if (detail()) {
+      <p class="state-detail"><code>{{ detail() }}</code></p>
+    }
+    <ng-content select="[card-cta]"></ng-content>
+  </mat-card-content>
+</mat-card>

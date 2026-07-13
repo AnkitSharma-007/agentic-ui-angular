@@ -37,7 +37,9 @@
       </p>
       <p class="muted">
         Don't have one? Grab a free key at
-        <a [attr.href]="config.aiStudioApiKeyUrl" target="_blank" rel="noopener noreferrer">aistudio.google.com/app/apikey</a>.
+        <a [attr.href]="config.aiStudioApiKeyUrl" target="_blank" rel="noopener noreferrer"
+          >aistudio.google.com/app/apikey</a
+        >.
       </p>
     </mat-card-content>
   </mat-card>
@@ -45,54 +47,7 @@
   <ol class="step-list">
     @for (step of steps; track step.index) {
       <li class="step">
-        <mat-card appearance="outlined" class="card step-card">
-          <mat-card-content>
-            <div class="step-head">
-              <span class="step-index" aria-hidden="true">
-                <span class="step-index-num">{{ step.index }}</span>
-                <span class="step-index-label">Step</span>
-              </span>
-              <div class="step-title-wrap">
-                <h2 class="step-title">{{ step.title }}</h2>
-                <p class="step-demo">{{ step.demonstrates }}</p>
-              </div>
-            </div>
-
-            <ul class="step-details">
-              @for (detail of step.details; track detail) {
-                <li>{{ detail }}</li>
-              }
-            </ul>
-
-            @if (step.watchFor) {
-              <p class="watch-for">
-                <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
-                <span><strong>Watch for:</strong> {{ step.watchFor }}</span>
-              </p>
-            }
-
-            <div class="step-actions">
-              @if (step.prompt) {
-                <a
-                  mat-flat-button
-                  color="primary"
-                  [routerLink]="['/']"
-                  [queryParams]="{ prompt: step.prompt }"
-                  class="prompt-link"
-                >
-                  <span class="material-symbols-outlined" aria-hidden="true">play_arrow</span>
-                  Try this prompt
-                </a>
-              }
-              @if (step.action) {
-                <a mat-stroked-button [routerLink]="step.action.link">
-                  <span class="material-symbols-outlined" aria-hidden="true">arrow_outward</span>
-                  {{ step.action.label }}
-                </a>
-              }
-            </div>
-          </mat-card-content>
-        </mat-card>
+        <app-guide-step-card [step]="step" />
       </li>
     }
   </ol>
@@ -107,19 +62,7 @@
     </header>
     <div class="deep-grid">
       @for (dive of deepDives; track dive.title) {
-        <mat-card appearance="outlined" class="card dive-card">
-          <mat-card-content>
-            <span class="dive-icon" aria-hidden="true">
-              <span class="material-symbols-outlined">{{ dive.icon }}</span>
-            </span>
-            <h3>{{ dive.title }}</h3>
-            <p>{{ dive.body }}</p>
-            <a mat-stroked-button [routerLink]="dive.link">
-              {{ dive.cta }}
-              <span class="material-symbols-outlined" aria-hidden="true">arrow_outward</span>
-            </a>
-          </mat-card-content>
-        </mat-card>
+        <app-deep-dive-card [dive]="dive" />
       }
     </div>
   </section>
