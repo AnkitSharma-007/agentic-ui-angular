@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { TokenAccountantService, toTokenUsage } from './token-accountant.service';
 import { ZERO_USAGE } from './usage.types';
 
-const MODEL = 'gemini-3-flash-preview';
+const MODEL = 'gemini-3.5-flash';
 
 describe('TokenAccountantService', () => {
   let service: TokenAccountantService;

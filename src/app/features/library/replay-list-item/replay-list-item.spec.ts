@@ -9,7 +9,7 @@ const SUMMARY: ReplaySummary = {
   id: 'run-1',
   title: 'Weekend in Goa',
   prompt: 'Plan a weekend trip',
-  model: 'gemini-3-flash',
+  model: 'gemini-3.5-flash',
   savedAt: new Date('2026-06-13T10:00:00Z').toISOString(),
   durationMs: 1500,
   eventCount: 42,

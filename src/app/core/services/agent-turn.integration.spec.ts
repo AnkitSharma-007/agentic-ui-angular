@@ -14,7 +14,7 @@ import { CustomToolsService } from '../custom-tools/custom-tools.service';
 import { proposeToolManifest } from '../../shared/tools/propose-tool/propose-tool.manifest';
 import { asAsync, finishChunk, textChunk, toolChunk } from '../../testing/gemini-chunks';
 
-const NOOP_OPTIONS = { model: 'gemini-3-test', thinkingConfig: { thinkingLevel: 'minimal' } };
+const NOOP_OPTIONS = { model: 'gemini-3.5-flash', thinkingConfig: { thinkingLevel: 'minimal' } };
 
 const DRAFT = {
   name: 'searchWeather',

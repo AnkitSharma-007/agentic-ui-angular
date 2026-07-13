@@ -32,7 +32,7 @@ describe('redactContext', () => {
       apiKey: 'AIzaTotallyReal',
       passphrase: 'hunter2',
       data: 'iVBORw0KGgo',
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.5-flash',
       count: 3,
       ok: true,
     }) as Record<string, unknown>;
@@ -40,7 +40,7 @@ describe('redactContext', () => {
     expect(out['apiKey']).toBe(REDACTED);
     expect(out['passphrase']).toBe(REDACTED);
     expect(out['data']).toBe(REDACTED);
-    expect(out['model']).toBe('gemini-2.5-flash');
+    expect(out['model']).toBe('gemini-3.5-flash');
     expect(out['count']).toBe(3);
     expect(out['ok']).toBe(true);
   });

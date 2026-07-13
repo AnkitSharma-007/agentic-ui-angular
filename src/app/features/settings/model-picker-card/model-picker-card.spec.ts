@@ -7,7 +7,7 @@ import { GeminiService } from '../../../core/services/gemini.service';
 
 interface ModelPickerInternals {
   selectModel(
-    id: 'gemini-3-flash-preview' | 'gemini-3.1-pro-preview' | 'gemini-3.1-flash-lite-preview',
+    id: 'gemini-3.5-flash' | 'gemini-3.1-pro-preview' | 'gemini-3.1-flash-lite',
   ): void;
 }
 

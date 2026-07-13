@@ -31,7 +31,7 @@ describe('ObservabilityService', () => {
       startedAt: 100,
       completedAt: 250,
       usage: { inputTokens: 10, outputTokens: 5, thoughtTokens: 2, totalTokens: 17 },
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       finishReason: 'STOP',
     });
     tokens.recordRound({
@@ -40,7 +40,7 @@ describe('ObservabilityService', () => {
       startedAt: 260,
       completedAt: 320,
       usage: { inputTokens: 4, outputTokens: 3, thoughtTokens: 1, totalTokens: 8 },
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       finishReason: 'STOP',
     });
 
@@ -84,7 +84,7 @@ describe('ObservabilityService', () => {
       startedAt: 100,
       completedAt: 200,
       usage: { inputTokens: 1, outputTokens: 1, thoughtTokens: 0, totalTokens: 2 },
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       finishReason: 'STOP',
     });
 
@@ -103,7 +103,7 @@ describe('ObservabilityService', () => {
       startedAt: 1000,
       completedAt: 1500,
       usage: { inputTokens: 0, outputTokens: 0, thoughtTokens: 0, totalTokens: 0 },
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       finishReason: 'STOP',
     });
     tokens.recordRound({
@@ -112,7 +112,7 @@ describe('ObservabilityService', () => {
       startedAt: 1600,
       completedAt: 2000,
       usage: { inputTokens: 0, outputTokens: 0, thoughtTokens: 0, totalTokens: 0 },
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       finishReason: 'STOP',
     });
 

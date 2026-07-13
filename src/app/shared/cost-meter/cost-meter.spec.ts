@@ -54,7 +54,7 @@ describe('CostMeterComponent', () => {
       startedAt: 100,
       completedAt: 250,
       usage: { inputTokens: 50, outputTokens: 25, thoughtTokens: 5, totalTokens: 80 },
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       finishReason: 'STOP',
     });
 

@@ -23,7 +23,7 @@ export function makeReplayPayload(partial: Partial<ReplayPayload> = {}): ReplayP
     title: partial.title ?? 'Test run',
     savedAt: partial.savedAt ?? '2026-05-10T10:00:00.000Z',
     prompt: partial.prompt ?? 'Plan a weekend in Goa.',
-    model: partial.model ?? 'gemini-3-flash-preview',
+    model: partial.model ?? 'gemini-3.5-flash',
     events,
     rawHistory: partial.rawHistory ?? [],
     ...(partial.customToolSpecs !== undefined ? { customToolSpecs: partial.customToolSpecs } : {}),

@@ -15,16 +15,16 @@ export const PRICING: Readonly<Record<string, ModelPricing>> = {
     thoughtPerMTok: 12.0,
     contextWindow: 1_000_000,
   },
-  'gemini-3-flash-preview': {
-    inputPerMTok: 0.3,
-    outputPerMTok: 2.5,
-    thoughtPerMTok: 2.5,
+  'gemini-3.5-flash': {
+    inputPerMTok: 1.5,
+    outputPerMTok: 9.0,
+    thoughtPerMTok: 9.0,
     contextWindow: 1_000_000,
   },
-  'gemini-3.1-flash-lite-preview': {
-    inputPerMTok: 0.1,
-    outputPerMTok: 0.4,
-    thoughtPerMTok: 0.4,
+  'gemini-3.1-flash-lite': {
+    inputPerMTok: 0.25,
+    outputPerMTok: 1.5,
+    thoughtPerMTok: 1.5,
     contextWindow: 1_000_000,
   },
 } as const;

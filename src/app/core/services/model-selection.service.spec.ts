@@ -18,8 +18,8 @@ describe('ModelSelectionService', () => {
   it('exposes the documented model list', () => {
     const ids = GEMINI_MODELS.map((m) => m.id);
     expect(ids).toContain('gemini-3.1-pro-preview');
-    expect(ids).toContain('gemini-3-flash-preview');
-    expect(ids).toContain('gemini-3.1-flash-lite-preview');
+    expect(ids).toContain('gemini-3.5-flash');
+    expect(ids).toContain('gemini-3.1-flash-lite');
   });
 
   it('defaults to the documented default model', () => {

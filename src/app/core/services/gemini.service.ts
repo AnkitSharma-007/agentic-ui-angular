@@ -96,7 +96,7 @@ export class GeminiService {
       const stream = await retryWithBackoff(
         () =>
           ai.models.generateContentStream({
-            model: 'gemini-3-flash-preview',
+            model: 'gemini-3.5-flash',
             contents: 'Reply with one word: ok',
             config: { thinkingConfig: { thinkingLevel: 'minimal' as SdkThinkingLevel } },
           }),

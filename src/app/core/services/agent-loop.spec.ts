@@ -129,7 +129,7 @@ async function drain(iter: AsyncIterable<AgentEvent>, signal?: AbortSignal): Pro
   return events;
 }
 
-const NOOP_OPTIONS = { model: 'gemini-3-test', thinkingConfig: { thinkingLevel: 'minimal' } };
+const NOOP_OPTIONS = { model: 'gemini-3.5-flash', thinkingConfig: { thinkingLevel: 'minimal' } };
 
 describe('runAgentTurn — happy path (text only)', () => {
   afterEach(() => TestBed.resetTestingModule());

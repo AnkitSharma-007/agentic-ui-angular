@@ -207,7 +207,7 @@ describe('runAgentTurn — end-to-end integration', () => {
     for await (const e of runAgentTurn(
       'Find flights BLR→GOA on 2026-06-15 for two.',
       'turn-1',
-      { model: 'gemini-3-flash-preview', thinkingConfig: { thinkingLevel: 'high' } },
+      { model: 'gemini-3.5-flash', thinkingConfig: { thinkingLevel: 'high' } },
       new AbortController().signal,
       deps,
     )) {
@@ -234,7 +234,7 @@ describe('runAgentTurn — end-to-end integration', () => {
     for await (const _ of runAgentTurn(
       'Find flights BLR→GOA on 2026-06-15 for two.',
       'turn-1',
-      { model: 'gemini-3-flash-preview', thinkingConfig: { thinkingLevel: 'high' } },
+      { model: 'gemini-3.5-flash', thinkingConfig: { thinkingLevel: 'high' } },
       new AbortController().signal,
       deps,
     )) {
@@ -257,7 +257,7 @@ describe('runAgentTurn — end-to-end integration', () => {
     for await (const _ of runAgentTurn(
       'Find flights BLR→GOA on 2026-06-15 for two.',
       'turn-1',
-      { model: 'gemini-3-flash-preview', thinkingConfig: { thinkingLevel: 'high' } },
+      { model: 'gemini-3.5-flash', thinkingConfig: { thinkingLevel: 'high' } },
       new AbortController().signal,
       deps,
     )) {
@@ -275,7 +275,7 @@ describe('runAgentTurn — end-to-end integration', () => {
     for await (const _ of runAgentTurn(
       'Find flights BLR→GOA on 2026-06-15 for two.',
       'turn-1',
-      { model: 'gemini-3-flash-preview', thinkingConfig: { thinkingLevel: 'high' } },
+      { model: 'gemini-3.5-flash', thinkingConfig: { thinkingLevel: 'high' } },
       new AbortController().signal,
       deps,
     )) {
@@ -295,7 +295,7 @@ describe('runAgentTurn — end-to-end integration', () => {
     for await (const _ of runAgentTurn(
       'Find flights BLR→GOA on 2026-06-15 for two.',
       'turn-1',
-      { model: 'gemini-3-flash-preview', thinkingConfig: { thinkingLevel: 'high' } },
+      { model: 'gemini-3.5-flash', thinkingConfig: { thinkingLevel: 'high' } },
       new AbortController().signal,
       deps,
     )) {
@@ -309,7 +309,7 @@ describe('runAgentTurn — end-to-end integration', () => {
     for await (const _ of runAgentTurn(
       'Find flights BLR→GOA on 2026-06-15 for two.',
       'turn-1',
-      { model: 'gemini-3-flash-preview', thinkingConfig: { thinkingLevel: 'high' } },
+      { model: 'gemini-3.5-flash', thinkingConfig: { thinkingLevel: 'high' } },
       new AbortController().signal,
       deps,
     )) {
