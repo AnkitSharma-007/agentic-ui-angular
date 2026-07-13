@@ -1,0 +1,118 @@
+:host {
+  display: contents;
+}
+
+.hero {
+  position: relative;
+  isolation: isolate;
+  padding: clamp(1.5rem, 4vw, 3rem) clamp(1rem, 3vw, 2rem);
+  border-radius: 24px;
+  overflow: hidden;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--mat-sys-surface-container) 60%, transparent),
+    color-mix(in srgb, var(--mat-sys-surface) 60%, transparent)
+  );
+  border: 1px solid var(--mat-sys-outline-variant);
+}
+
+.hero-inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.9rem;
+  max-width: 760px;
+}
+
+.hero h1 {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: clamp(2.25rem, 5.5vw, 4rem);
+  line-height: 1.02;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  color: var(--mat-sys-on-surface);
+}
+
+.hero h1 .grad {
+  background: linear-gradient(
+    100deg,
+    #7C5CFF 0%,
+    #3F8CFF 38%,
+    #13D0C9 70%,
+    #7C5CFF 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: grad-shift 8s linear infinite;
+}
+
+@keyframes grad-shift {
+  to { background-position: 200% 0%; }
+}
+
+.hero-sub {
+  margin: 0;
+  font-size: clamp(15px, 1.5vw, 17px);
+  line-height: 1.55;
+  color: var(--mat-sys-on-surface-variant);
+  max-width: 620px;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: 0;
+  will-change: transform;
+}
+
+.orb-a {
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(circle, #7C5CFF, transparent 70%);
+  top: -120px;
+  right: -80px;
+  animation: drift-a 14s ease-in-out infinite alternate;
+}
+
+.orb-b {
+  width: 260px;
+  height: 260px;
+  background: radial-gradient(circle, #13D0C9, transparent 70%);
+  bottom: -120px;
+  left: 30%;
+  animation: drift-b 18s ease-in-out infinite alternate;
+}
+
+.orb-c {
+  width: 220px;
+  height: 220px;
+  background: radial-gradient(circle, #3F8CFF, transparent 70%);
+  top: 20%;
+  left: -80px;
+  animation: drift-c 16s ease-in-out infinite alternate;
+}
+
+@keyframes drift-a {
+  to { transform: translate3d(-40px, 30px, 0) scale(1.1); }
+}
+@keyframes drift-b {
+  to { transform: translate3d(30px, -20px, 0) scale(1.05); }
+}
+@keyframes drift-c {
+  to { transform: translate3d(20px, 40px, 0) scale(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orb,
+  .hero h1 .grad {
+    animation: none;
+  }
+}

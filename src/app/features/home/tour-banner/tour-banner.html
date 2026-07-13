@@ -1,0 +1,25 @@
+@if (visible()) {
+  <aside class="tour-banner" role="note" aria-label="Atlas tour">
+    <span class="tour-icon material-symbols-outlined" aria-hidden="true">explore</span>
+    <div class="tour-text">
+      <strong>First visit? Atlas can show you around.</strong>
+      <span class="muted">A four-minute tour of every feature, with one-click prompts.</span>
+    </div>
+    <div class="tour-actions">
+      <a mat-flat-button color="primary" routerLink="/guide">
+        <span class="material-symbols-outlined" aria-hidden="true">arrow_outward</span>
+        Take the tour
+      </a>
+      <button
+        mat-icon-button
+        type="button"
+        class="tour-dismiss"
+        aria-label="Dismiss tour banner"
+        title="Dismiss"
+        (click)="dismiss()"
+      >
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+      </button>
+    </div>
+  </aside>
+}

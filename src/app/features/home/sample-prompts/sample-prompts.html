@@ -1,0 +1,35 @@
+<section class="samples" aria-label="Sample prompts">
+  <div class="samples-header">
+    <span class="eyebrow eyebrow--muted">
+      <span class="material-symbols-outlined" aria-hidden="true">rocket_launch</span>
+      Get started
+    </span>
+    <a mat-stroked-button routerLink="/library" class="library-link">
+      <span class="material-symbols-outlined" aria-hidden="true">video_library</span>
+      Saved runs
+      @if (savedCount() > 0) {
+        <span class="library-count">{{ savedCount() }}</span>
+      }
+    </a>
+  </div>
+
+  <div class="sample-grid">
+    @for (s of samplePrompts; track s.text; let i = $index) {
+      <button
+        type="button"
+        class="sample-card"
+        [style.--i]="i"
+        (click)="select.emit(s.text)"
+      >
+        <span class="sample-icon" aria-hidden="true">
+          <span class="material-symbols-outlined">{{ s.icon }}</span>
+        </span>
+        <span class="sample-body">
+          <span class="sample-label">{{ s.label }}</span>
+          <span class="sample-text">{{ s.text }}</span>
+        </span>
+        <span class="material-symbols-outlined sample-arrow" aria-hidden="true">arrow_outward</span>
+      </button>
+    }
+  </div>
+</section>

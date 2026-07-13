@@ -1,0 +1,140 @@
+<div
+  class="composer"
+  [class.is-streaming]="streaming()"
+  [class.is-disabled]="streaming()"
+  [class.is-dragging]="isDraggingOver()"
+  (dragover)="onDragOver($event)"
+  (dragleave)="onDragLeave()"
+  (drop)="onDrop($event)"
+>
+  @if (attachments().length > 0) {
+    <div class="composer-attachments" aria-label="Attachments">
+      @for (attachment of attachments(); track attachment.id) {
+        <div class="attachment-chip">
+          <img class="attachment-thumb" [src]="preview(attachment)" alt="" aria-hidden="true" />
+          <span class="attachment-name">{{ attachment.name || 'image' }}</span>
+          <button
+            type="button"
+            class="attachment-remove"
+            aria-label="Remove attachment"
+            title="Remove"
+            [disabled]="streaming()"
+            (click)="removeAttachment.emit(attachment.id)"
+          >
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
+          </button>
+        </div>
+      }
+    </div>
+  }
+
+  @if (notice()) {
+    <p class="attachment-error" role="alert">
+      <span class="material-symbols-outlined" aria-hidden="true">warning</span>
+      {{ notice() }}
+    </p>
+  }
+
+  <textarea
+    #promptArea
+    class="composer-input"
+    rows="3"
+    [value]="prompt()"
+    (input)="prompt.set($any($event.target).value)"
+    (paste)="onPaste($event)"
+    (keydown.meta.enter)="canSend() && send.emit()"
+    (keydown.control.enter)="canSend() && send.emit()"
+    [disabled]="streaming()"
+    placeholder="Ask anything… or drop an image"
+    aria-label="Prompt"
+  ></textarea>
+
+  <div class="composer-footer">
+    <div class="composer-hints">
+      <button
+        type="button"
+        class="attach-btn"
+        [disabled]="streaming()"
+        (click)="openFilePicker()"
+        title="Attach image"
+        aria-label="Attach image"
+      >
+        <span class="material-symbols-outlined" aria-hidden="true">add_photo_alternate</span>
+      </button>
+      @if (micSupported()) {
+        <button
+          type="button"
+          class="attach-btn mic-btn"
+          [class.is-recording]="recording()"
+          [disabled]="streaming()"
+          [attr.aria-pressed]="recording()"
+          [attr.aria-label]="recording() ? 'Stop voice input' : 'Start voice input'"
+          [title]="recording() ? 'Stop voice input' : 'Voice input'"
+          (click)="toggleMic.emit()"
+        >
+          <span class="material-symbols-outlined" aria-hidden="true">
+            {{ recording() ? 'stop_circle' : 'mic' }}
+          </span>
+        </button>
+        @if (recording()) {
+          <span class="mic-status" role="status" aria-live="polite">Listening…</span>
+        }
+      } @else {
+        <!-- Disabled mic on browsers without Web Speech API — wrapper carries tooltip on hover. -->
+        <span
+          class="mic-unsupported"
+          title="Voice input isn't supported in this browser — try Chrome or Edge."
+        >
+          <button
+            type="button"
+            class="attach-btn mic-btn mic-btn--unsupported"
+            disabled
+            aria-label="Voice input is not supported in this browser"
+          >
+            <span class="material-symbols-outlined" aria-hidden="true">mic_off</span>
+          </button>
+        </span>
+      }
+      <span class="kbd-hint" aria-hidden="true">
+        <kbd>{{ sendShortcut() }}</kbd>
+        <kbd>↵</kbd>
+        <span class="kbd-hint-label">to send</span>
+      </span>
+      @if (prompt().length > 0) {
+        <span class="char-count">{{ prompt().length }} chars</span>
+      }
+    </div>
+
+    @if (streaming()) {
+      <button
+        type="button"
+        class="send-btn send-btn--cancel"
+        (click)="cancel.emit()"
+        title="Cancel"
+        aria-label="Cancel streaming"
+      >
+        <span class="material-symbols-outlined" aria-hidden="true">stop</span>
+      </button>
+    } @else {
+      <button
+        type="button"
+        class="send-btn"
+        [disabled]="!canSend()"
+        (click)="send.emit()"
+        [title]="sendShortcut() + ' + Enter to send'"
+        aria-label="Send prompt"
+      >
+        <span class="material-symbols-outlined" aria-hidden="true">arrow_upward</span>
+      </button>
+    }
+  </div>
+
+  <input
+    #fileInput
+    type="file"
+    accept="image/*"
+    multiple
+    hidden
+    (change)="onFileInputChange($event)"
+  />
+</div>

@@ -1,0 +1,388 @@
+:host {
+  display: contents;
+}
+
+.composer {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.75rem 0.85rem 0.6rem;
+  border-radius: 18px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--mat-sys-surface-container) 55%, transparent) 0%,
+    color-mix(in srgb, var(--mat-sys-surface) 90%, transparent) 100%
+  );
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--mat-sys-outline-variant) 30%, transparent);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+
+  &:focus-within {
+    border-color: color-mix(in srgb, var(--mat-sys-primary) 55%, var(--mat-sys-outline));
+    box-shadow:
+      0 0 0 4px color-mix(in srgb, var(--mat-sys-primary) 12%, transparent),
+      0 10px 30px -22px color-mix(in srgb, var(--mat-sys-primary) 55%, transparent);
+  }
+
+  &.is-streaming {
+    border-color: color-mix(in srgb, var(--mat-sys-primary) 45%, transparent);
+    animation: composer-streaming 2.4s ease-in-out infinite;
+  }
+
+  &.is-disabled {
+    opacity: 0.9;
+  }
+}
+
+@keyframes composer-streaming {
+  0%, 100% {
+    box-shadow:
+      0 0 0 4px color-mix(in srgb, var(--mat-sys-primary) 12%, transparent),
+      0 8px 32px -18px color-mix(in srgb, var(--mat-sys-primary) 55%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 8px color-mix(in srgb, var(--mat-sys-tertiary) 14%, transparent),
+      0 12px 36px -16px color-mix(in srgb, var(--mat-sys-tertiary) 55%, transparent);
+  }
+}
+
+.composer-input {
+  appearance: none;
+  width: 100%;
+  resize: vertical;
+  min-height: 4.25rem;
+  max-height: 14rem;
+  padding: 0.4rem 0.35rem;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--mat-sys-on-surface);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.55;
+  letter-spacing: -0.005em;
+
+  &::placeholder {
+    color: var(--mat-sys-on-surface-variant);
+    opacity: 0.85;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    color: var(--mat-sys-on-surface-variant);
+  }
+}
+
+.composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.composer-hints {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 11.5px;
+}
+
+.kbd-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+
+  kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.35rem;
+    height: 1.35rem;
+    padding: 0 0.3rem;
+    border-radius: 6px;
+    border: 1px solid var(--mat-sys-outline-variant);
+    background-color: color-mix(in srgb, var(--mat-sys-surface-container-high) 70%, transparent);
+    color: var(--mat-sys-on-surface-variant);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+  }
+}
+
+.kbd-hint-label {
+  margin-left: 0.2rem;
+  letter-spacing: 0.01em;
+}
+
+.char-count {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  background-color: color-mix(in srgb, var(--mat-sys-surface-container) 60%, transparent);
+  border: 1px solid var(--mat-sys-outline-variant);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+}
+
+.send-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-radius: 999px;
+  border: 0;
+  cursor: pointer;
+  color: var(--mat-sys-on-primary);
+  background: linear-gradient(135deg, var(--mat-sys-primary), var(--mat-sys-tertiary));
+  box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--mat-sys-primary) 70%, transparent);
+  transition: transform 140ms ease, box-shadow 140ms ease, opacity 140ms ease, background 140ms ease;
+
+  .material-symbols-outlined {
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 22px -10px color-mix(in srgb, var(--mat-sys-primary) 80%, transparent);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+    background: var(--mat-sys-surface-container-high);
+    color: var(--mat-sys-on-surface-variant);
+    box-shadow: none;
+  }
+
+  &--cancel {
+    background: linear-gradient(
+      135deg,
+      var(--mat-sys-error),
+      color-mix(in srgb, var(--mat-sys-error) 55%, var(--mat-sys-primary))
+    );
+    box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--mat-sys-error) 70%, transparent);
+
+    &:hover {
+      box-shadow: 0 10px 22px -10px color-mix(in srgb, var(--mat-sys-error) 80%, transparent);
+    }
+  }
+}
+
+.composer.is-dragging {
+  border-color: color-mix(in srgb, var(--mat-sys-primary) 65%, var(--mat-sys-outline));
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--mat-sys-primary) 16%, transparent),
+    0 10px 30px -22px color-mix(in srgb, var(--mat-sys-primary) 60%, transparent);
+
+  &::after {
+    content: 'Drop image to attach';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: inherit;
+    background-color: color-mix(in srgb, var(--mat-sys-primary) 10%, transparent);
+    color: var(--mat-sys-primary);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    pointer-events: none;
+    z-index: 2;
+  }
+}
+
+.composer-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.attachment-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.55rem 0.3rem 0.35rem;
+  border-radius: 12px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  background-color: color-mix(in srgb, var(--mat-sys-surface-container-high) 80%, transparent);
+  max-width: 220px;
+}
+
+.attachment-thumb {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--mat-sys-outline-variant);
+}
+
+.attachment-name {
+  font-size: 12px;
+  color: var(--mat-sys-on-surface-variant);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.attachment-remove {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  background-color: color-mix(in srgb, var(--mat-sys-surface-container-highest) 90%, transparent);
+  color: var(--mat-sys-on-surface-variant);
+  transition: background-color 0.14s ease, color 0.14s ease;
+
+  .material-symbols-outlined {
+    font-size: 15px;
+    line-height: 1;
+  }
+
+  &:hover:not(:disabled) {
+    background-color: var(--mat-sys-error-container);
+    color: var(--mat-sys-on-error-container);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+}
+
+.attachment-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 12px;
+  color: var(--mat-sys-error);
+
+  .material-symbols-outlined {
+    font-size: 16px;
+    line-height: 1;
+  }
+}
+
+.attach-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border-radius: 999px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  cursor: pointer;
+  background-color: color-mix(in srgb, var(--mat-sys-surface-container-high) 70%, transparent);
+  color: var(--mat-sys-on-surface-variant);
+  transition: background-color 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+
+  .material-symbols-outlined {
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  &:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--mat-sys-primary) 55%, var(--mat-sys-outline-variant));
+    color: var(--mat-sys-primary);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+}
+
+.mic-unsupported {
+  display: inline-flex;
+}
+
+// pointer-events: none on disabled mic; wrapper span receives hover for tooltip.
+.mic-btn--unsupported {
+  pointer-events: none;
+}
+
+.mic-btn.is-recording {
+  border-color: color-mix(in srgb, var(--mat-sys-error) 55%, transparent);
+  background-color: color-mix(in srgb, var(--mat-sys-error) 16%, transparent);
+  color: var(--mat-sys-error);
+  animation: mic-pulse 1.4s ease-in-out infinite;
+
+  &:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--mat-sys-error) 70%, transparent);
+    color: var(--mat-sys-error);
+  }
+}
+
+@keyframes mic-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--mat-sys-error) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--mat-sys-error) 0%, transparent);
+  }
+}
+
+.mic-status {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--mat-sys-error);
+}
+
+@media (max-width: 480px) {
+  .send-btn {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+
+    .material-symbols-outlined {
+      font-size: 18px;
+    }
+  }
+
+  .kbd-hint-label {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer.is-streaming {
+    animation: none;
+  }
+  .send-btn {
+    transition: none;
+  }
+  .mic-btn.is-recording {
+    animation: none;
+  }
+}

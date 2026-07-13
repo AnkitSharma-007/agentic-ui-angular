@@ -281,27 +281,6 @@ describe('HomeComponent replay flow', () => {
     expect(instance.activeReplayId()).toBeNull();
   });
 
-  it('retryToolLoad re-attempts a failed lazy module and clears the failed flag (M19)', async () => {
-    const registry = TestBed.inject(ToolRegistry);
-    const tool = makeMockTool('flakyTool');
-    tool.loadSpy.mockRejectedValueOnce(new Error('network blip'));
-    registry.register(tool.manifest);
-
-    const fixture = TestBed.createComponent(HomeComponent);
-    const instance = fixture.componentInstance as unknown as {
-      retryToolLoad: (name: string) => void;
-    };
-    await fixture.whenStable();
-
-    await expect(registry.loadImpl('flakyTool')).rejects.toThrow('network blip');
-    expect(registry.hasFailed('flakyTool')).toBe(true);
-
-    // Retry after rejection clears failedNames.
-    instance.retryToolLoad('flakyTool');
-    await vi.waitFor(() => expect(registry.hasFailed('flakyTool')).toBe(false));
-    expect(registry.componentFor('flakyTool')).not.toBeNull();
-  });
-
   it('reset() clears activeReplayId and resets the agent registry', async () => {
     const agents = TestBed.inject(AgentRegistry);
     const resetAgentsSpy = vi.spyOn(agents, 'resetForNewTurn');

@@ -1,0 +1,18 @@
+<section class="user-turn" aria-label="Your message">
+  @if (turn().attachments.length > 0) {
+    <div class="user-turn-media">
+      @for (media of turn().attachments; track media.dataUrl; let idx = $index) {
+        @if (media.kind === 'image') {
+          <img class="user-turn-thumb" [src]="media.dataUrl" [alt]="'Attached image ' + (idx + 1)" />
+        } @else {
+          <span class="user-turn-file" aria-label="Audio attachment">
+            <span class="material-symbols-outlined" aria-hidden="true">graphic_eq</span>
+          </span>
+        }
+      }
+    </div>
+  }
+  @if (turn().text) {
+    <p class="user-turn-text">{{ turn().text }}</p>
+  }
+</section>

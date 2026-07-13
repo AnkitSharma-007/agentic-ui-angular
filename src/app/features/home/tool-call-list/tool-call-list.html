@@ -1,0 +1,27 @@
+@if (displayed().length > 0) {
+  <section class="tool-calls" aria-label="Tool calls">
+    @for (call of displayed(); track call.callId; let i = $index) {
+      <div class="tool-slot" [style.--i]="i">
+        @if (componentFor(call); as component) {
+          <ng-container *ngComponentOutlet="component; inputs: inputsFor(call)" />
+        } @else if (registry.hasFailed(call.name)) {
+          <app-tool-error-fallback
+            [toolName]="call.name"
+            [retrying]="retryingTools().has(call.name)"
+            (retry)="retryToolLoad(call.name)"
+          />
+        } @else if (registry.get(call.name)) {
+          <div class="tool-loading" role="status" aria-live="polite">
+            <span class="material-symbols-outlined spinning" aria-hidden="true">progress_activity</span>
+            <span>Loading <code>{{ call.name }}</code> module…</span>
+          </div>
+        } @else {
+          <div class="tool-unknown">
+            <span class="material-symbols-outlined" aria-hidden="true">help</span>
+            <span>No component registered for <code>{{ call.name }}</code>.</span>
+          </div>
+        }
+      </div>
+    }
+  </section>
+}

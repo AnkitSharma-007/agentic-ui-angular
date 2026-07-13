@@ -1,0 +1,72 @@
+:host {
+  display: contents;
+}
+
+.tour-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--mat-sys-primary) 30%, var(--mat-sys-outline-variant));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--mat-sys-primary) 12%, var(--mat-sys-surface-container)),
+    color-mix(in srgb, var(--mat-sys-tertiary) 10%, var(--mat-sys-surface-container))
+  );
+  box-shadow: 0 6px 20px -14px var(--app-shadow-color, rgba(0, 0, 0, 0.4));
+}
+
+.tour-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background-color: color-mix(in srgb, var(--mat-sys-primary) 20%, transparent);
+  color: var(--mat-sys-primary);
+  font-size: 20px;
+}
+
+.tour-text {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+
+  strong {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--mat-sys-on-surface);
+  }
+
+  .muted {
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--mat-sys-on-surface-variant);
+  }
+}
+
+.tour-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex: 0 0 auto;
+}
+
+.tour-dismiss {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+@media (max-width: 560px) {
+  .tour-banner {
+    flex-wrap: wrap;
+  }
+  .tour-text {
+    flex-basis: 100%;
+  }
+}

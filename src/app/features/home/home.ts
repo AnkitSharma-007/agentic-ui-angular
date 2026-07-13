@@ -1,7 +1,6 @@
 import {
   Component,
   DestroyRef,
-  ElementRef,
   Injector,
   OnInit,
   afterNextRender,
@@ -10,14 +9,11 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { NgComponentOutlet } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Subject, takeUntil } from 'rxjs';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
 
 import { ApiKeyService } from '../../core/services/api-key.service';
 import { GeminiService } from '../../core/services/gemini.service';
@@ -25,7 +21,7 @@ import { ErrorService } from '../../core/errors/error.service';
 import { LoggerService } from '../../core/logging/logger.service';
 import { NotificationService } from '../../shared/notifications/notification.service';
 import { ConnectivityService } from '../../core/connectivity/connectivity.service';
-import { AgentEventStore, type ToolCallState } from '../../core/streaming/agent-event.store';
+import { AgentEventStore } from '../../core/streaming/agent-event.store';
 import { ToolRegistry } from '../../core/registry/tool-registry';
 import { ReplayService } from '../../core/replay/replay.service';
 import { CustomToolsService } from '../../core/custom-tools/custom-tools.service';
@@ -35,7 +31,7 @@ import { AgentRegistry } from '../../core/agents/agent-registry.service';
 import { play, type ReplaySpeed } from '../../core/replay/replay-player';
 import type { AgentEvent } from '../../core/streaming/agent-event';
 import type { HistoryContent } from '../../core/streaming/raw-history.reducer';
-import { toDataUrl, type InlineAttachment } from '../../core/media/attachment.types';
+import type { InlineAttachment } from '../../core/media/attachment.types';
 import {
   MAX_ATTACHMENTS,
   MAX_ATTACHMENT_BYTES,
@@ -59,32 +55,33 @@ import { OnboardingComponent } from '../onboarding/onboarding';
 import { ThoughtComponent } from '../../shared/thought/thought';
 import { MarkdownComponent } from '../../shared/markdown/markdown';
 import { AgentGraphComponent } from '../../shared/agent-graph/agent-graph';
-import { ToolErrorFallbackComponent } from '../../shared/error-boundary/tool-error-fallback';
-
-const REPLAY_SPEEDS: readonly ReplaySpeed[] = [0.5, 1, 2, 4];
+import { HomeHeroComponent } from './hero/hero';
+import { TourBannerComponent } from './tour-banner/tour-banner';
+import { SamplePromptsComponent } from './sample-prompts/sample-prompts';
+import { UserTurnComponent } from './user-turn/user-turn';
+import { ReplayBannerComponent } from './replay-banner/replay-banner';
+import { ToolCallListComponent } from './tool-call-list/tool-call-list';
+import { PromptComposerComponent } from './prompt-composer/prompt-composer';
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
-
-interface SamplePrompt {
-  readonly icon: string;
-  readonly label: string;
-  readonly text: string;
-}
 
 @Component({
   selector: 'app-home',
   imports: [
-    FormsModule,
     RouterLink,
-    NgComponentOutlet,
     OnboardingComponent,
     ThoughtComponent,
     MarkdownComponent,
     AgentGraphComponent,
-    ToolErrorFallbackComponent,
+    HomeHeroComponent,
+    TourBannerComponent,
+    SamplePromptsComponent,
+    UserTurnComponent,
+    ReplayBannerComponent,
+    ToolCallListComponent,
+    PromptComposerComponent,
     MatCardModule,
     MatButtonModule,
-    MatIconModule,
   ],
   templateUrl: './home.html',
   styleUrl: './home.scss',
@@ -107,16 +104,12 @@ export class HomeComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly injector = inject(Injector);
 
-  private readonly promptArea = viewChild<ElementRef<HTMLTextAreaElement>>('promptArea');
-  private readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
+  private readonly composer = viewChild(PromptComposerComponent);
 
   protected readonly prompt = signal('');
   protected readonly lastPrompt = signal('');
-  protected readonly showTourBanner = signal(false);
   protected readonly attachments = signal<readonly InlineAttachment[]>([]);
   protected readonly attachmentError = signal<string | null>(null);
-  protected readonly isDraggingOver = signal(false);
-  protected readonly maxAttachments = MAX_ATTACHMENTS;
 
   protected readonly micSupported = isSpeechRecognitionSupported();
   protected readonly isRecording = signal(false);
@@ -128,9 +121,6 @@ export class HomeComponent implements OnInit {
   protected readonly phase = this.store.phase;
   protected readonly responseText = this.store.responseText;
   protected readonly toolCalls = this.store.toolCalls;
-  protected readonly displayedToolCalls = computed(() =>
-    collapseSingletonCards(this.toolCalls(), (name) => this.registry.get(name)?.singleton ?? false),
-  );
   protected readonly errorMessage = this.store.error;
   protected readonly stats = this.store.stats;
   protected readonly hasOutput = this.store.hasOutput;
@@ -145,12 +135,9 @@ export class HomeComponent implements OnInit {
   protected readonly saveStatus = signal<SaveStatus>('idle');
   protected readonly saveWarning = signal<string | null>(null);
   protected readonly replaySpeed = signal<ReplaySpeed>(1);
-  protected readonly speedOptions = REPLAY_SPEEDS;
   protected readonly activeReplayId = signal<string | null>(null);
   // Replay load failure banner with Back-to-Library recovery — separate from streaming errors.
   protected readonly replayLoadError = signal<string | null>(null);
-  // Tool modules being retried (spinner + dedupe concurrent clicks).
-  protected readonly retryingTools = signal<ReadonlySet<string>>(new Set());
   protected readonly canSave = computed(() => {
     return (
       this.phase() === 'complete' &&
@@ -161,29 +148,6 @@ export class HomeComponent implements OnInit {
   });
 
   protected readonly sendShortcutModifier = isMacPlatform() ? '⌘' : 'Ctrl';
-
-  protected readonly samplePrompts: readonly SamplePrompt[] = [
-    {
-      icon: 'travel',
-      label: 'Plan a weekend',
-      text: 'Plan a weekend in Goa for 2 vegetarian travellers leaving Bengaluru on 2026-06-13 and returning 2026-06-15. Suggest flights, a hotel, recommend a few must-do activities, and render the itinerary on a map.',
-    },
-    {
-      icon: 'explore',
-      label: 'Activities only',
-      text: 'I am already in Goa. Suggest 5 activities for foodies and culture lovers over a 2-day stay.',
-    },
-    {
-      icon: 'compare_arrows',
-      label: 'Let me choose',
-      text: 'Find flights from Bengaluru to Goa on 2026-06-13 for 1 passenger. Show me the options and let me pick one, then book it for Ankit Sharma and show the trip on a map.',
-    },
-    {
-      icon: 'route',
-      label: 'Road trip',
-      text: 'Plot a long-weekend road trip from Bengaluru to Coorg via Mysuru and back. Render the route on a map with stops for lunch and a coffee-estate stay.',
-    },
-  ];
 
   protected readonly canSend = computed(() => {
     const hasContent = this.prompt().trim().length > 0 || this.attachments().length > 0;
@@ -200,7 +164,6 @@ export class HomeComponent implements OnInit {
   private readonly cancel$ = new Subject<void>();
 
   ngOnInit(): void {
-    this.showTourBanner.set(!hasTourBeenDismissed());
     this.destroyRef.onDestroy(() => this.speechController?.abort());
 
     this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
@@ -214,11 +177,6 @@ export class HomeComponent implements OnInit {
         this.applyPromptPrefill(prefill);
       }
     });
-  }
-
-  protected dismissTourBanner(): void {
-    this.showTourBanner.set(false);
-    markTourDismissed();
   }
 
   private applyPromptPrefill(text: string): void {
@@ -240,9 +198,9 @@ export class HomeComponent implements OnInit {
     this.focusPromptArea();
   }
 
-  // afterNextRender waits for the textarea DOM; queueMicrotask fires before zoneless CD flushes.
+  // afterNextRender waits for the composer's textarea to render before focusing it.
   private focusPromptArea(): void {
-    afterNextRender(() => this.promptArea()?.nativeElement.focus(), { injector: this.injector });
+    afterNextRender(() => this.composer()?.focusInput(), { injector: this.injector });
   }
 
   protected cancel(): void {
@@ -253,7 +211,6 @@ export class HomeComponent implements OnInit {
   protected reset(): void {
     this.cancel$.next();
     if (this.isRecording()) this.stopRecording();
-    this.inputsCache.clear();
     this.store.reset();
     this.agents.resetForNewTurn();
     this.tokenAccountant.clearLifetime();
@@ -267,80 +224,6 @@ export class HomeComponent implements OnInit {
     this.activeReplayId.set(null);
     this.replayLoadError.set(null);
     this.clearReplayQueryParam();
-  }
-
-  protected componentFor(call: ToolCallState) {
-    // Touch loadedNames so the template re-renders when lazy descriptors finish loading.
-    void this.registry.loadedNames();
-    return this.registry.componentFor(call.name);
-  }
-
-  // Retry failed lazy module; loadImpl clears/re-flags failedNames; concurrent clicks deduped.
-  protected retryToolLoad(name: string): void {
-    if (this.retryingTools().has(name)) return;
-    this.retryingTools.update((s) => new Set(s).add(name));
-    void this.registry
-      .loadImpl(name)
-      .catch((err) => {
-        // Retry button reappears via failedNames; log is diagnostic only, not silent recovery.
-        this.logger.debug('Tool module retry failed.', {
-          category: 'chunk_load',
-          context: { feature: 'home', op: 'retryToolLoad', tool: name },
-          error: err,
-        });
-      })
-      .finally(() => {
-        this.retryingTools.update((s) => {
-          const next = new Set(s);
-          next.delete(name);
-          return next;
-        });
-      });
-  }
-
-  // NgComponentOutlet re-applies inputs on new references; cache per callId and reuse while fields unchanged.
-  private readonly inputsCache = new Map<
-    string,
-    {
-      readonly args: unknown;
-      readonly result: unknown;
-      readonly status: ToolCallState['status'];
-      readonly errorMessage: string | null;
-      readonly interruptReason: string | null;
-      readonly value: Record<string, unknown>;
-    }
-  >();
-
-  protected inputsFor(call: ToolCallState): Record<string, unknown> {
-    const interruptReason = call.interruptReason ?? null;
-    const cached = this.inputsCache.get(call.callId);
-    if (
-      cached &&
-      cached.args === call.args &&
-      cached.result === call.result &&
-      cached.status === call.status &&
-      cached.errorMessage === call.errorMessage &&
-      cached.interruptReason === interruptReason
-    ) {
-      return cached.value;
-    }
-    const value: Record<string, unknown> = {
-      callId: call.callId,
-      args: call.args,
-      result: call.result,
-      status: call.status,
-      errorMessage: call.errorMessage,
-      interruptReason,
-    };
-    this.inputsCache.set(call.callId, {
-      args: call.args,
-      result: call.result,
-      status: call.status,
-      errorMessage: call.errorMessage,
-      interruptReason,
-      value,
-    });
-    return value;
   }
 
   protected send(): void {
@@ -446,53 +329,11 @@ export class HomeComponent implements OnInit {
     this.isRecording.set(false);
   }
 
-  protected openFilePicker(): void {
-    this.fileInput()?.nativeElement.click();
-  }
-
-  protected onFileInputChange(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    if (input.files && input.files.length > 0) {
-      void this.addFiles(Array.from(input.files));
-    }
-    input.value = '';
-  }
-
-  protected onPaste(event: ClipboardEvent): void {
-    const files = Array.from(event.clipboardData?.files ?? []);
-    if (files.some(isImageFile)) {
-      event.preventDefault();
-      void this.addFiles(files);
-    }
-  }
-
-  protected onDragOver(event: DragEvent): void {
-    if (this.isStreaming()) return;
-    event.preventDefault();
-    this.isDraggingOver.set(true);
-  }
-
-  protected onDragLeave(): void {
-    this.isDraggingOver.set(false);
-  }
-
-  protected onDrop(event: DragEvent): void {
-    event.preventDefault();
-    this.isDraggingOver.set(false);
-    if (this.isStreaming()) return;
-    const files = Array.from(event.dataTransfer?.files ?? []);
-    if (files.length > 0) void this.addFiles(files);
-  }
-
   protected removeAttachment(id: string): void {
     this.attachments.update((list) => list.filter((a) => a.id !== id));
   }
 
-  protected attachmentPreview(attachment: InlineAttachment): string {
-    return toDataUrl(attachment);
-  }
-
-  private async addFiles(files: readonly File[]): Promise<void> {
+  protected async addFiles(files: readonly File[]): Promise<void> {
     this.attachmentError.set(null);
     const images = files.filter(isImageFile);
     if (images.length < files.length) {
@@ -707,48 +548,6 @@ function sliceCurrentTurnHistory(history: readonly HistoryContent[]): readonly H
     if (history[i].role === 'user') return history.slice(i);
   }
   return history;
-}
-
-// Collapse singleton tools to one card (latest, preferring non-failed); registry drives which names qualify.
-function collapseSingletonCards(
-  calls: readonly ToolCallState[],
-  isSingleton: (name: string) => boolean,
-): readonly ToolCallState[] {
-  const winners = new Map<string, ToolCallState>();
-  let hasSingleton = false;
-  for (const call of calls) {
-    if (!isSingleton(call.name)) continue;
-    hasSingleton = true;
-    const kept = winners.get(call.name);
-    if (!kept) {
-      winners.set(call.name, call);
-      continue;
-    }
-    const keptFailed = kept.status === 'error' || kept.status === 'rejected';
-    const candFailed = call.status === 'error' || call.status === 'rejected';
-    if (keptFailed && !candFailed) winners.set(call.name, call);
-    else if (keptFailed === candFailed) winners.set(call.name, call);
-  }
-  if (!hasSingleton) return calls;
-  return calls.filter((c) => !isSingleton(c.name) || winners.get(c.name)?.callId === c.callId);
-}
-
-const TOUR_DISMISSED_KEY = 'atlas.tour.dismissed';
-
-function hasTourBeenDismissed(): boolean {
-  try {
-    return localStorage.getItem(TOUR_DISMISSED_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function markTourDismissed(): void {
-  try {
-    localStorage.setItem(TOUR_DISMISSED_KEY, '1');
-  } catch {
-    // ignore — banner will simply reappear next visit
-  }
 }
 
 function isMacPlatform(): boolean {

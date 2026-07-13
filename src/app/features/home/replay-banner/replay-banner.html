@@ -1,0 +1,47 @@
+<section class="replay-banner" role="status" aria-live="polite">
+  <div class="replay-meta">
+    <span class="material-symbols-outlined replay-icon" aria-hidden="true">
+      {{ replaying() ? 'play_circle' : 'replay_circle_filled' }}
+    </span>
+    <div class="replay-text">
+      @if (replaying()) {
+        <strong>Replaying saved run</strong>
+        <span class="muted">Events are re-emitted with original timing.</span>
+      } @else if (complete()) {
+        <strong>Replay complete</strong>
+        <span class="muted">Restart to play again, or Clear to exit replay mode.</span>
+      } @else {
+        <strong>Replay stopped</strong>
+        <span class="muted">Restart to play again, or Clear to exit replay mode.</span>
+      }
+    </div>
+  </div>
+
+  <div class="replay-controls">
+    <span class="speed-label">Speed</span>
+    <div class="speed-pills" role="group" aria-label="Replay speed">
+      @for (s of speedOptions; track s) {
+        <button
+          type="button"
+          class="speed-pill"
+          [class.active]="speed() === s"
+          (click)="speedChange.emit(s)"
+          [attr.aria-pressed]="speed() === s"
+        >
+          {{ s }}×
+        </button>
+      }
+    </div>
+    @if (replaying()) {
+      <button mat-stroked-button type="button" color="warn" (click)="stop.emit()">
+        <span class="material-symbols-outlined" aria-hidden="true">stop</span>
+        Stop
+      </button>
+    } @else {
+      <button mat-flat-button type="button" color="primary" (click)="restart.emit()">
+        <span class="material-symbols-outlined" aria-hidden="true">replay</span>
+        Restart
+      </button>
+    }
+  </div>
+</section>
