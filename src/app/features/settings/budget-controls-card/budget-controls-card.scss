@@ -1,0 +1,98 @@
+@use '../../../../styles/mixins' as *;
+
+:host {
+  display: block;
+}
+
+@include icon-label-buttons;
+
+.card-actions {
+  @include card-actions;
+}
+
+.card-actions--split {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.saved-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  font:
+    600 0.75rem/1 'Inter',
+    sans-serif;
+  color: var(--mat-sys-on-primary);
+  background: linear-gradient(135deg, var(--mat-sys-primary), var(--mat-sys-tertiary));
+  border-radius: 999px;
+  animation: saved-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  flex-shrink: 0;
+
+  mat-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+  }
+}
+
+@keyframes saved-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.presets {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.presets-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--mat-sys-on-surface) 60%, transparent);
+  margin-right: 0.25rem;
+}
+
+.budget-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+@media (max-width: 760px) {
+  .budget-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.autosave-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
+  color: var(--mat-sys-on-surface-variant);
+
+  mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    color: var(--mat-sys-primary);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .saved-pill {
+    animation: none;
+  }
+}

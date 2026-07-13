@@ -1,0 +1,17 @@
+<mat-form-field appearance="outline">
+  <mat-label>{{ label() }}</mat-label>
+  <mat-icon matPrefix aria-hidden="true">{{ icon() }}</mat-icon>
+  <input
+    matInput
+    type="number"
+    [step]="step()"
+    [placeholder]="placeholder()"
+    [formField]="field()"
+    (blur)="commit.emit()"
+  />
+  @if (state().invalid()) {
+    <mat-error>{{ state().errors()[0]?.message }}</mat-error>
+  } @else {
+    <mat-hint>{{ hint() }}</mat-hint>
+  }
+</mat-form-field>

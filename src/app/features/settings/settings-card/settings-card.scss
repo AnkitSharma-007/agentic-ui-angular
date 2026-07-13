@@ -1,0 +1,87 @@
+@use '../../../../styles/mixins' as *;
+
+:host {
+  display: block;
+}
+
+.settings-card {
+  border-radius: 16px;
+  padding: clamp(1rem, 2.5vw, 1.5rem);
+  @include glass-card;
+}
+
+.settings-card--accent {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, #7c5cff 6%, transparent),
+      color-mix(in srgb, #13d0c9 3%, transparent)
+    ),
+    color-mix(in srgb, var(--mat-sys-surface) 70%, transparent);
+}
+
+.card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+
+.card-head-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: color-mix(in srgb, var(--mat-sys-primary) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--mat-sys-primary) 22%, transparent);
+  color: var(--mat-sys-primary);
+
+  mat-icon {
+    font-size: 22px;
+    width: 22px;
+    height: 22px;
+  }
+}
+
+.card-head-text {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+
+  h2 {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--mat-sys-on-surface);
+  }
+
+  p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--mat-sys-on-surface-variant);
+  }
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+@media (max-width: 480px) {
+  .card-head {
+    gap: 0.65rem;
+  }
+
+  .card-head-icon {
+    width: 36px;
+    height: 36px;
+  }
+}

@@ -1,0 +1,18 @@
+<app-settings-card
+  icon="auto_awesome"
+  heading="Agent tool synthesis"
+  description="Let the agent propose brand-new tools when no existing one fits. Every proposal pauses for your review — you approve, edit, or reject before it's registered. Nothing runs automatically."
+>
+  <mat-slide-toggle
+    [checked]="toolSynthesis.enabled()"
+    (change)="setToolSynthesis($event.checked)"
+  >
+    Enable agent tool synthesis
+  </mat-slide-toggle>
+  <p class="card-note">
+    Capped at {{ maxToolSynthesisPerTurn }} proposals per turn. Synthesized
+    tools only return the JSON template you approve — they never call real
+    services. Disable this to keep the agent to its built-in and hand-built
+    tools only.
+  </p>
+</app-settings-card>

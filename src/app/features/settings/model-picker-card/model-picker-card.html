@@ -1,0 +1,28 @@
+<app-settings-card
+  icon="graph_3"
+  heading="Model"
+  description="The Gemini model used for new chats."
+>
+  <mat-form-field appearance="outline" class="full-width">
+    <mat-label>Gemini model</mat-label>
+    <mat-icon matPrefix aria-hidden="true">smart_toy</mat-icon>
+    <mat-select [value]="gemini.selectedModel()" (selectionChange)="selectModel($event.value)">
+      @for (m of models; track m.id) {
+        <mat-option [value]="m.id">{{ m.label }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+
+  @if (selectedModelMeta(); as meta) {
+    <div class="model-meta">
+      <span class="meta-chip" [class.meta-chip--pro]="meta.tier === 'pro'">
+        <mat-icon>{{ meta.tier === 'pro' ? 'workspace_premium' : 'bolt' }}</mat-icon>
+        {{ meta.tier === 'pro' ? 'Pro tier' : meta.tier === 'flash' ? 'Flash tier' : 'Flash-Lite' }}
+      </span>
+      <span class="meta-chip">
+        <mat-icon>{{ meta.tier === 'pro' ? 'payments' : 'savings' }}</mat-icon>
+        {{ meta.tier === 'pro' ? 'Paid usage' : 'Free tier eligible' }}
+      </span>
+    </div>
+  }
+</app-settings-card>

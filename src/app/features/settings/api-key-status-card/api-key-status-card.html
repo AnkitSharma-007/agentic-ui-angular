@@ -1,0 +1,49 @@
+<app-settings-card
+  icon="vpn_key"
+  heading="API key"
+  description="Where Atlas is keeping your key right now."
+>
+  <div class="status-grid">
+    <div class="status-item">
+      <span class="status-label">Storage</span>
+      <span class="status-value">
+        <mat-icon>{{ apiKey.storage() === 'encrypted-local' ? 'enhanced_encryption' : apiKey.storage() === 'session' ? 'timer' : 'help' }}</mat-icon>
+        {{ storageLabel() }}
+      </span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">In memory</span>
+      <span class="status-value" [class.status-value--ok]="apiKey.hasKey()">
+        <mat-icon>{{ apiKey.hasKey() ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+        {{ apiKey.hasKey() ? 'Yes' : 'No' }}
+      </span>
+    </div>
+  </div>
+  <p class="card-note">
+    Session-only keys are wiped when the tab closes. Encrypted-local keys
+    survive across sessions and require your passphrase to unlock.
+  </p>
+  @if (apiKey.sessionPersistenceFailed()) {
+    <p class="card-warning" role="status">
+      <mat-icon aria-hidden="true">warning</mat-icon>
+      This browser blocked session storage, so your key is only held in
+      memory — it won't survive a page reload. Re-enter it after refreshing,
+      or choose "Remember on this device" to store it encrypted.
+    </p>
+  }
+
+  <div card-actions class="card-actions">
+    @if (confirmingClearKey()) {
+      <button mat-stroked-button (click)="cancelClearKey()">Cancel</button>
+      <button mat-flat-button color="warn" (click)="clearKey()">
+        <mat-icon>delete_forever</mat-icon>
+        Confirm clear
+      </button>
+    } @else {
+      <button mat-stroked-button color="warn" (click)="clearKey()" [disabled]="!apiKey.hasKey()">
+        <mat-icon>delete</mat-icon>
+        Clear key
+      </button>
+    }
+  </div>
+</app-settings-card>

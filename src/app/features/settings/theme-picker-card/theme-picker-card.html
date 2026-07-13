@@ -1,0 +1,29 @@
+<app-settings-card icon="contrast" heading="Theme">
+  <p card-desc class="card-desc">
+    Resolved: <strong>{{ theme.resolvedTheme() }}</strong>. Pick a fixed
+    mode or follow your OS.
+  </p>
+
+  <div
+    ngListbox
+    class="theme-picker"
+    orientation="horizontal"
+    selectionMode="follow"
+    aria-label="Theme preference"
+    [value]="themeSelection()"
+    (valueChange)="onThemeChange($event)"
+  >
+    @for (opt of themeOptions; track opt.value) {
+      <div
+        ngOption
+        class="theme-option"
+        [value]="opt.value"
+        [label]="opt.label"
+        [class.theme-option--active]="theme.preference() === opt.value"
+      >
+        <mat-icon>{{ opt.icon }}</mat-icon>
+        <span>{{ opt.label }}</span>
+      </div>
+    }
+  </div>
+</app-settings-card>

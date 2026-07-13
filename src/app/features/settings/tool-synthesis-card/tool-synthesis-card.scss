@@ -1,0 +1,9 @@
+@use '../../../../styles/mixins' as *;
+
+:host {
+  display: block;
+}
+
+.card-note {
+  @include card-note;
+}

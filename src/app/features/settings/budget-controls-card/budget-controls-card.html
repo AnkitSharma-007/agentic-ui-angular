@@ -1,0 +1,69 @@
+<app-settings-card
+  icon="shield"
+  heading="Budget controls"
+  description="Per-turn safety net. The agent loop aborts the next round if any cap is breached, with a clear reason shown to the user."
+  [accent]="true"
+>
+  @if (budgetSaveStatus() === 'saved') {
+    <span card-badge class="saved-pill" role="status">
+      <mat-icon>check_circle</mat-icon> Saved
+    </span>
+  }
+
+  <div class="presets">
+    <span class="presets-label">Quick presets</span>
+    <button mat-stroked-button (click)="applyPreset('tight')">
+      <mat-icon>speed</mat-icon>
+      Tight
+    </button>
+    <button mat-stroked-button (click)="applyPreset('demo')">
+      <mat-icon>play_circle</mat-icon>
+      Demo
+    </button>
+    <button mat-stroked-button (click)="applyPreset('generous')">
+      <mat-icon>all_inclusive</mat-icon>
+      Generous
+    </button>
+  </div>
+
+  <div class="budget-grid">
+    <app-budget-cap-field
+      [field]="budgetForm.maxTokens"
+      label="Max tokens / turn"
+      icon="token"
+      step="1000"
+      placeholder="e.g. 40000"
+      hint="Empty = no cap"
+      (commit)="saveBudget()"
+    />
+    <app-budget-cap-field
+      [field]="budgetForm.maxRounds"
+      label="Max rounds / turn"
+      icon="repeat"
+      step="1"
+      placeholder="e.g. 6"
+      hint="Caps tool-loop length"
+      (commit)="saveBudget()"
+    />
+    <app-budget-cap-field
+      [field]="budgetForm.maxCost"
+      label="Max cost (USD) / turn"
+      icon="payments"
+      step="0.01"
+      placeholder="e.g. 0.10"
+      hint="Computed from model pricing"
+      (commit)="saveBudget()"
+    />
+  </div>
+
+  <div card-actions class="card-actions card-actions--split">
+    <span class="autosave-hint">
+      <mat-icon aria-hidden="true">bolt</mat-icon>
+      Changes apply and save automatically
+    </span>
+    <button mat-stroked-button (click)="resetBudget()">
+      <mat-icon>restart_alt</mat-icon>
+      Clear all
+    </button>
+  </div>
+</app-settings-card>

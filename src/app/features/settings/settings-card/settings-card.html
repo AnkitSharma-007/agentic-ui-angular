@@ -1,0 +1,19 @@
+<mat-card appearance="outlined" class="settings-card" [class.settings-card--accent]="accent()">
+  <div class="card-head">
+    <span class="card-head-icon">
+      <mat-icon>{{ icon() }}</mat-icon>
+    </span>
+    <div class="card-head-text">
+      <h2>{{ heading() }}</h2>
+      @if (description()) {
+        <p>{{ description() }}</p>
+      }
+      <ng-content select="[card-desc]"></ng-content>
+    </div>
+    <ng-content select="[card-badge]"></ng-content>
+  </div>
+  <div class="card-body">
+    <ng-content></ng-content>
+  </div>
+  <ng-content select="[card-actions]"></ng-content>
+</mat-card>

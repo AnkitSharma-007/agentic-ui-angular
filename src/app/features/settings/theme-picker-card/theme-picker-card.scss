@@ -1,0 +1,75 @@
+:host {
+  display: block;
+}
+
+.card-desc {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.theme-picker {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  padding: 0.4rem;
+  border-radius: 14px;
+  background-color: color-mix(in srgb, var(--mat-sys-surface-container) 50%, transparent);
+  border: 1px solid var(--mat-sys-outline-variant);
+}
+
+.theme-option {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 10px;
+  padding: 0.75rem 0.5rem;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--mat-sys-on-surface-variant);
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+
+  mat-icon {
+    font-size: 22px;
+    width: 22px;
+    height: 22px;
+  }
+
+  &:hover {
+    background-color: color-mix(in srgb, var(--mat-sys-primary) 6%, transparent);
+    color: var(--mat-sys-on-surface);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--mat-sys-primary);
+    outline-offset: 2px;
+  }
+
+  &.theme-option--active {
+    background-color: color-mix(in srgb, var(--mat-sys-primary) 14%, transparent);
+    border-color: color-mix(in srgb, var(--mat-sys-primary) 30%, transparent);
+    color: var(--mat-sys-primary);
+
+    mat-icon {
+      color: var(--mat-sys-primary);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-option {
+    transition: none;
+  }
+}
