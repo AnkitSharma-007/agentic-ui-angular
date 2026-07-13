@@ -269,17 +269,17 @@
 }
 
 .kind-round .wf-bar {
-  background: linear-gradient(90deg, #9560fa, #07c3e6);
+  background: linear-gradient(90deg, var(--viz-output), var(--viz-input-end));
   box-shadow: 0 0 6px -1px color-mix(in srgb, var(--mat-sys-primary) 60%, transparent);
 }
 
 .kind-tool .wf-bar {
-  background: linear-gradient(90deg, #5cf6c9, #07c3e6);
+  background: linear-gradient(90deg, var(--viz-input), var(--viz-input-end));
   opacity: 0.85;
 }
 
 .wf-bar.status-error {
-  background: linear-gradient(90deg, #ff5c5c, #ff2a8d);
+  background: linear-gradient(90deg, var(--viz-danger), var(--viz-danger-end));
   animation: error-pulse 1.2s ease-in-out infinite;
 }
 
@@ -442,9 +442,9 @@
   height: 8px;
   border-radius: 50%;
 
-  &.input { background: linear-gradient(135deg, #5cf6c9, #07c3e6); }
-  &.output { background: linear-gradient(135deg, #9560fa, #c87bff); }
-  &.thinking { background: linear-gradient(135deg, #ffae5c, #ff6ec7); }
+  &.input { background: linear-gradient(135deg, var(--viz-input), var(--viz-input-end)); }
+  &.output { background: linear-gradient(135deg, var(--viz-output), var(--viz-output-end)); }
+  &.thinking { background: linear-gradient(135deg, var(--viz-thinking), var(--viz-thinking-end)); }
   &.total { background: linear-gradient(135deg, var(--mat-sys-primary), var(--mat-sys-tertiary)); }
 }
 

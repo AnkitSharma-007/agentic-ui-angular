@@ -334,9 +334,17 @@ refactor(styles): introduce spacing/radius/type design tokens
 Includes-AI-Code: true
 ```
 
-### Phase 5 — Color tokenization + light-mode pass
+### Phase 5 — Color tokenization + light-mode pass — ✅ Done (2026-07-13)
 **Goal:** Make both themes first-class; kill hardcoded hex. Highest theme-fidelity payoff.
 **Addresses:** P0-3.
+
+> **Implemented (2026-07-13):**
+> - Added a colour layer to `src/styles/_tokens.scss`: brand hues `--brand-1/2/3` (violet/teal/blue), a data-viz palette `--viz-input/-end`, `--viz-output/-end`, `--viz-thinking/-end`, `--viz-danger/-end` (start→end gradient stops), and agent-accent tokens `--accent-curator-1/2`. Base (`:root`) values **equal the previously-hardcoded hexes**, so dark mode is byte-identical.
+> - **Light-mode pass:** added an `html.theme-light` override that deepens the palest data-viz series (`--viz-input`/`--viz-input-end` mint→cyan) so legend dots/bars stay legible on a light surface; brand hues and mid-tone series read fine on both themes and are shared. (Values flagged in-file for visual fine-tuning.)
+> - **Replaced raw hex with tokens across the app:** `styles.scss` (aurora), `hero.scss` (gradient + orbs), `header.html` (logo SVG gradient stops via CSP-safe inline `style`), `cost-meter.scss` + `observability-drawer.scss` (all data-viz bars/dots/danger), and brand hues in `guide/deep-dive-card/guide-step-card/storage-state-card/settings-card/about/security/tools/page-header/onboarding-hero`. Curator agent-accent hex in `activity-list.scss` → `--accent-curator-*`.
+> - **Validation:** `npm run build` → clean; tokens confirmed emitted (`--brand-1`, `--viz-*`, `--accent-curator-1` in `:root`, plus the `html.theme-light` `--viz-input` override) in the compiled CSS. `npm test` → 619/619 passing.
+> - **Scoped out (intentional):** *semantic* status/categorical colours are **not** brand/chart and remain literals for a separate pass — success greens (`security`, `api-key-status-card`, `status-banner`), passphrase-strength levels, itinerary-map marker categories + `#fff` marker borders, and the `#000` dialog scrim. The `tools.scss` tertiary **fallback** was mapped to `var(--viz-output)` (identical value).
+> - **⚠ Light-mode QA is still yours to eyeball:** no live render here. Do a click-through in light/dark/system and confirm the deepened `--viz-input` pair + all tokenized surfaces read well; tell me if any hue needs nudging.
 **Scope:**
 - Promote brand hues to `--brand-1/2/3` with light/dark values; define a theme-aware chart palette for token/waterfall visualizations.
 - Replace raw hex in `styles.scss` (aurora), `hero.scss`, `header` SVG, `cost-meter.scss` (token bars/danger), `observability-drawer.scss` (backdrop/waterfall), agent accents.

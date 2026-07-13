@@ -175,9 +175,9 @@
   }
 
   &--agent {
-    color: var(--mat-sys-tertiary, #9560fa);
-    background: color-mix(in srgb, var(--mat-sys-tertiary, #9560fa) 14%, transparent);
-    border: 1px solid color-mix(in srgb, var(--mat-sys-tertiary, #9560fa) 30%, transparent);
+    color: var(--mat-sys-tertiary, var(--viz-output));
+    background: color-mix(in srgb, var(--mat-sys-tertiary, var(--viz-output)) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--mat-sys-tertiary, var(--viz-output)) 30%, transparent);
   }
 }
 
@@ -312,8 +312,8 @@
   background:
     linear-gradient(
       180deg,
-      color-mix(in srgb, #7c5cff 4%, transparent),
-      color-mix(in srgb, #13d0c9 2%, transparent)
+      color-mix(in srgb, var(--brand-1) 4%, transparent),
+      color-mix(in srgb, var(--brand-2) 2%, transparent)
     ),
     color-mix(in srgb, var(--mat-sys-surface) 70%, transparent);
   --mat-card-outlined-container-color: transparent;

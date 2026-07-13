@@ -21,12 +21,12 @@
   background:
     radial-gradient(
       ellipse 600px 220px at 100% 0%,
-      color-mix(in srgb, #7C5CFF 14%, transparent),
+      color-mix(in srgb, var(--brand-1) 14%, transparent),
       transparent 60%
     ),
     radial-gradient(
       ellipse 500px 200px at 0% 100%,
-      color-mix(in srgb, #13D0C9 10%, transparent),
+      color-mix(in srgb, var(--brand-2) 10%, transparent),
       transparent 60%
     ),
     color-mix(in srgb, var(--mat-sys-surface) 70%, transparent);
@@ -93,7 +93,7 @@
     bottom: 12%;
     width: 4px;
     border-radius: 2px;
-    background: linear-gradient(180deg, #7C5CFF, #13D0C9);
+    background: linear-gradient(180deg, var(--brand-1), var(--brand-2));
   }
 }
 
@@ -136,8 +136,8 @@
     pointer-events: none;
     background: linear-gradient(
       135deg,
-      color-mix(in srgb, #7C5CFF 0%, transparent),
-      color-mix(in srgb, #13D0C9 0%, transparent)
+      color-mix(in srgb, var(--brand-1) 0%, transparent),
+      color-mix(in srgb, var(--brand-2) 0%, transparent)
     );
     opacity: 0;
     transition: opacity 200ms ease;
@@ -159,8 +159,8 @@
       opacity: 1;
       background: linear-gradient(
         135deg,
-        color-mix(in srgb, #7C5CFF 8%, transparent),
-        color-mix(in srgb, #13D0C9 5%, transparent)
+        color-mix(in srgb, var(--brand-1) 8%, transparent),
+        color-mix(in srgb, var(--brand-2) 5%, transparent)
       );
     }
 
@@ -203,8 +203,8 @@
   border-radius: 12px;
   background: linear-gradient(
     135deg,
-    color-mix(in srgb, #7C5CFF 18%, transparent),
-    color-mix(in srgb, #13D0C9 18%, transparent)
+    color-mix(in srgb, var(--brand-1) 18%, transparent),
+    color-mix(in srgb, var(--brand-2) 18%, transparent)
   );
   border: 1px solid color-mix(in srgb, var(--mat-sys-primary) 22%, transparent);
   color: var(--mat-sys-primary);

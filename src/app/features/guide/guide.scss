@@ -35,12 +35,12 @@
   background:
     radial-gradient(
       ellipse 600px 220px at 100% 0%,
-      color-mix(in srgb, #7c5cff 14%, transparent),
+      color-mix(in srgb, var(--brand-1) 14%, transparent),
       transparent 60%
     ),
     radial-gradient(
       ellipse 500px 200px at 0% 100%,
-      color-mix(in srgb, #13d0c9 10%, transparent),
+      color-mix(in srgb, var(--brand-2) 10%, transparent),
       transparent 60%
     ),
     color-mix(in srgb, var(--mat-sys-surface) 70%, transparent);

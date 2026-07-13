@@ -57,12 +57,12 @@ body::before {
   background:
     radial-gradient(
       ellipse 600px 400px at 15% 0%,
-      color-mix(in srgb, #7c5cff 14%, transparent) 0%,
+      color-mix(in srgb, var(--brand-1) 14%, transparent) 0%,
       transparent 60%
     ),
     radial-gradient(
       ellipse 700px 500px at 85% 100%,
-      color-mix(in srgb, #13d0c9 12%, transparent) 0%,
+      color-mix(in srgb, var(--brand-2) 12%, transparent) 0%,
       transparent 60%
     );
   opacity: 0.7;

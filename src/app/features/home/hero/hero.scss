@@ -39,10 +39,10 @@
 .hero h1 .grad {
   background: linear-gradient(
     100deg,
-    #7C5CFF 0%,
-    #3F8CFF 38%,
-    #13D0C9 70%,
-    #7C5CFF 100%
+    var(--brand-1) 0%,
+    var(--brand-3) 38%,
+    var(--brand-2) 70%,
+    var(--brand-1) 100%
   );
   background-size: 200% 100%;
   -webkit-background-clip: text;
@@ -72,7 +72,7 @@
 .orb-a {
   width: 320px;
   height: 320px;
-  background: radial-gradient(circle, #7C5CFF, transparent 70%);
+  background: radial-gradient(circle, var(--brand-1), transparent 70%);
   top: -120px;
   right: -80px;
   animation: drift-a 14s ease-in-out infinite alternate;
@@ -81,7 +81,7 @@
 .orb-b {
   width: 260px;
   height: 260px;
-  background: radial-gradient(circle, #13D0C9, transparent 70%);
+  background: radial-gradient(circle, var(--brand-2), transparent 70%);
   bottom: -120px;
   left: 30%;
   animation: drift-b 18s ease-in-out infinite alternate;
@@ -90,7 +90,7 @@
 .orb-c {
   width: 220px;
   height: 220px;
-  background: radial-gradient(circle, #3F8CFF, transparent 70%);
+  background: radial-gradient(circle, var(--brand-3), transparent 70%);
   top: 20%;
   left: -80px;
   animation: drift-c 16s ease-in-out infinite alternate;

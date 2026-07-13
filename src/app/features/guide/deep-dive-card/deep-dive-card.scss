@@ -52,8 +52,8 @@
   border-radius: 12px;
   background: linear-gradient(
     135deg,
-    color-mix(in srgb, #7c5cff 18%, transparent),
-    color-mix(in srgb, #13d0c9 18%, transparent)
+    color-mix(in srgb, var(--brand-1) 18%, transparent),
+    color-mix(in srgb, var(--brand-2) 18%, transparent)
   );
   border: 1px solid color-mix(in srgb, var(--mat-sys-primary) 22%, transparent);
   color: var(--mat-sys-primary);

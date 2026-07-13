@@ -231,13 +231,13 @@
     transition: width 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
 
     &.input {
-      background: linear-gradient(90deg, #5cf6c9, #07c3e6);
+      background: linear-gradient(90deg, var(--viz-input), var(--viz-input-end));
     }
     &.output {
-      background: linear-gradient(90deg, #9560fa, #c87bff);
+      background: linear-gradient(90deg, var(--viz-output), var(--viz-output-end));
     }
     &.thinking {
-      background: linear-gradient(90deg, #ffae5c, #ff6ec7);
+      background: linear-gradient(90deg, var(--viz-thinking), var(--viz-thinking-end));
     }
   }
 }
@@ -271,13 +271,13 @@
   border-radius: 50%;
 
   &.input {
-    background: linear-gradient(135deg, #5cf6c9, #07c3e6);
+    background: linear-gradient(135deg, var(--viz-input), var(--viz-input-end));
   }
   &.output {
-    background: linear-gradient(135deg, #9560fa, #c87bff);
+    background: linear-gradient(135deg, var(--viz-output), var(--viz-output-end));
   }
   &.thinking {
-    background: linear-gradient(135deg, #ffae5c, #ff6ec7);
+    background: linear-gradient(135deg, var(--viz-thinking), var(--viz-thinking-end));
   }
 }
 
@@ -326,11 +326,11 @@
     transition: width 240ms cubic-bezier(0.2, 0.8, 0.2, 1), background 200ms ease;
 
     &.warn {
-      background: linear-gradient(90deg, #ffae5c, #ff6ec7);
+      background: linear-gradient(90deg, var(--viz-thinking), var(--viz-thinking-end));
     }
 
     &.danger {
-      background: linear-gradient(90deg, #ff5c5c, #ff2a8d);
+      background: linear-gradient(90deg, var(--viz-danger), var(--viz-danger-end));
       animation: danger-pulse 1.2s ease-in-out infinite;
     }
   }

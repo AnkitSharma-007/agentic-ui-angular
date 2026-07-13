@@ -12,8 +12,10 @@
 //   • Type sizes are in **rem** (root = 16px) so they scale with user font-size.
 //     Pair a size token with a --leading-* line-height token.
 //
-// Colour tokens are intentionally NOT here yet — brand/chart colour
-// tokenisation + the light-mode pass is a separate, larger change.
+// Colour: brand hues and the data-viz palette are tokenised below. Base (:root)
+// values equal the previously-hardcoded hexes, so dark mode is unchanged; the
+// html.theme-light block deepens the palest data-viz hues for legibility on a
+// light surface.
 // =============================================================================
 
 :root {
@@ -46,4 +48,37 @@
   --leading-snug: 1.3;
   --leading-normal: 1.5;
   --leading-relaxed: 1.6;
+
+  // --- Brand hues -------------------------------------------------------------
+  // The identity gradient (violet → blue → teal). Shared across both themes.
+  --brand-1: #7c5cff; // violet
+  --brand-2: #13d0c9; // teal
+  --brand-3: #3f8cff; // blue
+
+  // --- Data-viz palette -------------------------------------------------------
+  // Series colours for the cost meter + observability charts. Each series is a
+  // two-stop gradient (start → end).
+  --viz-input: #5cf6c9; //     mint
+  --viz-input-end: #07c3e6; // cyan
+  --viz-output: #9560fa; //     violet
+  --viz-output-end: #c87bff; // light violet
+  --viz-thinking: #ffae5c; //   amber
+  --viz-thinking-end: #ff6ec7; // pink
+  --viz-danger: #ff5c5c; //     red
+  --viz-danger-end: #ff2a8d; // magenta
+
+  // --- Agent accents ----------------------------------------------------------
+  // Mirror the per-agent accent gradients declared in agent-definitions.ts, for
+  // surfaces styled to a specific agent (e.g. the Experience Curator tool cards).
+  --accent-curator-1: #ff6ec7; // pink
+  --accent-curator-2: #ffae5c; // amber
+}
+
+// Light-mode tuning: the dark-tuned neon mint/cyan wash out on a light surface,
+// so the "input" series legend dots/bars become near-invisible. Deepen just that
+// pair for legibility. (Brand hues and the mid-tone series read fine on both.)
+// NOTE: verify visually in light mode; adjust these two values to taste.
+html.theme-light {
+  --viz-input: #10b39b; //     deeper teal-green
+  --viz-input-end: #0596b8; // deeper cyan
 }
