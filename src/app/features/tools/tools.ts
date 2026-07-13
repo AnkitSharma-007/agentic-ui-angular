@@ -1,5 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { applyEach, form, validate, FormField } from '@angular/forms/signals';
+import { form, FormField } from '@angular/forms/signals';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -9,35 +9,29 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 
 import { CustomToolsService } from '../../core/custom-tools/custom-tools.service';
-import {
-  applyResponseTemplate,
-  validateParameterName,
-  validateToolName,
-  type CustomToolParameter,
-  type CustomToolParameterType,
-  type CustomToolSpec,
+import type {
+  CustomToolParameter,
+  CustomToolParameterType,
+  CustomToolSpec,
 } from '../../core/custom-tools/custom-tool.types';
+import {
+  addDraftParam,
+  applyToolDraftValidators,
+  buildTemplatePreview,
+  removeDraftParam,
+  setDraftParamRequired,
+  setDraftParamType,
+  TYPE_OPTIONS,
+  type DraftParameter,
+  type ToolDraftModel,
+} from '../../core/custom-tools/tool-draft-form';
 import { PageHeaderComponent } from '../../shared/page-header/page-header';
 import { coalesceWithRaf } from '../../shared/util/raf-coalesce';
 import { randomUuid } from '../../core/utils/id';
 
-interface DraftParameter {
-  name: string;
-  type: CustomToolParameterType;
-  description: string;
-  required: boolean;
-}
-
-interface BuilderForm {
-  name: string;
-  description: string;
-  parameters: DraftParameter[];
-  responseTemplate: string;
-}
-
 const DEFAULT_TEMPLATE = '{\n  "result": "ok"\n}';
 
-function emptyBuilder(): BuilderForm {
+function emptyBuilder(): ToolDraftModel {
   return { name: '', description: '', parameters: [], responseTemplate: DEFAULT_TEMPLATE };
 }
 
@@ -63,32 +57,16 @@ export class ToolsComponent {
   protected readonly specs = this.customTools.specs;
   protected readonly editingId = signal<string | null>(null);
 
-  // Editor validation (name format/uniqueness, description, parameters) lives in the schema below.
-  protected readonly builderModel = signal<BuilderForm>(emptyBuilder());
+  // Editor validation (name format/uniqueness, description, parameters) lives in the shared schema.
+  protected readonly builderModel = signal<ToolDraftModel>(emptyBuilder());
 
-  protected readonly builderForm = form(this.builderModel, (p) => {
-    validate(p.name, ({ value }) => {
-      const n = value().trim();
-      const err = validateToolName(n);
-      if (err) return { kind: 'toolName', message: err };
-      if (this.customTools.isNameInUse(n, this.editingId() ?? undefined)) {
-        return { kind: 'nameInUse', message: 'A tool with this name already exists.' };
-      }
-      return null;
-    });
-    validate(p.description, ({ value }) =>
-      value().trim().length === 0 ? { kind: 'required', message: 'A description is required.' } : null,
-    );
-    applyEach(p.parameters, (param) => {
-      validate(param.name, (ctx) => {
-        const nm = ctx.value().trim();
-        const err = validateParameterName(nm);
-        if (err) return { kind: 'paramName', message: err };
-        const count = ctx.valueOf(p.parameters).filter((q) => q.name.trim() === nm).length;
-        return count > 1 ? { kind: 'dupParam', message: 'Duplicate parameter name.' } : null;
-      });
-    });
-  });
+  protected readonly builderForm = form(this.builderModel, (p) =>
+    applyToolDraftValidators(p, {
+      isNameInUse: (n) => this.customTools.isNameInUse(n, this.editingId() ?? undefined),
+      nameInUseMessage: 'A tool with this name already exists.',
+      descriptionMessage: 'A description is required.',
+    }),
+  );
 
   protected readonly saving = signal(false);
   protected readonly saveError = signal<string | null>(null);
@@ -96,11 +74,7 @@ export class ToolsComponent {
   // Id awaiting two-step inline delete confirm instead of native confirm().
   protected readonly confirmingDeleteId = signal<string | null>(null);
 
-  protected readonly typeOptions: readonly { value: CustomToolParameterType; label: string }[] = [
-    { value: 'string', label: 'string' },
-    { value: 'number', label: 'number' },
-    { value: 'boolean', label: 'boolean' },
-  ];
+  protected readonly typeOptions = TYPE_OPTIONS;
 
   protected readonly nameError = computed<string | null>(
     () => this.builderForm.name().errors()[0]?.message ?? null,
@@ -120,21 +94,13 @@ export class ToolsComponent {
   private readonly debouncedParameters = computed(() => this.debouncedModel().parameters);
   private readonly debouncedTemplate = computed(() => this.debouncedModel().responseTemplate);
 
-  protected readonly templatePreview = computed<{ ok: boolean; text: string }>(() => {
+  protected readonly templatePreview = computed(() => {
     const args: Record<string, unknown> = {};
     for (const p of this.debouncedParameters()) {
       if (!p.name) continue;
       args[p.name] = sampleValue(p.type);
     }
-    const result = applyResponseTemplate(this.debouncedTemplate(), args);
-    if (result.ok) {
-      try {
-        return { ok: true, text: JSON.stringify(result.value, null, 2) };
-      } catch {
-        return { ok: true, text: String(result.value) };
-      }
-    }
-    return { ok: false, text: result.error };
+    return buildTemplatePreview(this.debouncedTemplate(), args);
   });
 
   protected readonly canSave = computed(
@@ -166,31 +132,19 @@ export class ToolsComponent {
   }
 
   protected addParameter(): void {
-    this.builderModel.update((m) => ({
-      ...m,
-      parameters: [...m.parameters, { name: '', type: 'string', description: '', required: true }],
-    }));
+    this.builderModel.update(addDraftParam);
   }
 
   protected removeParameter(index: number): void {
-    this.builderModel.update((m) => ({
-      ...m,
-      parameters: m.parameters.filter((_, i) => i !== index),
-    }));
+    this.builderModel.update((m) => removeDraftParam(m, index));
   }
 
   protected updateParameterType(index: number, value: CustomToolParameterType): void {
-    this.builderModel.update((m) => ({
-      ...m,
-      parameters: m.parameters.map((p, i) => (i === index ? { ...p, type: value } : p)),
-    }));
+    this.builderModel.update((m) => setDraftParamType(m, index, value));
   }
 
   protected updateParameterRequired(index: number, value: boolean): void {
-    this.builderModel.update((m) => ({
-      ...m,
-      parameters: m.parameters.map((p, i) => (i === index ? { ...p, required: value } : p)),
-    }));
+    this.builderModel.update((m) => setDraftParamRequired(m, index, value));
   }
 
   protected async save(): Promise<void> {
