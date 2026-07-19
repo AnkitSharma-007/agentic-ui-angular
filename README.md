@@ -1,8 +1,11 @@
 # Atlas — Agents that build their own UI
 
+[![Live demo](https://img.shields.io/badge/Live%20demo-online-brightgreen.svg)](https://angular-agentic-ui.vercel.app/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Built with Angular](https://img.shields.io/badge/Built%20with-Angular-dd0031.svg)](https://angular.dev)
 [![Powered by Gemini](https://img.shields.io/badge/Powered%20by-Gemini-4285F4.svg)](https://ai.google.dev)
+
+**[Try the live demo](https://angular-agentic-ui.vercel.app/)** — runs entirely in your browser; bring your own Gemini key.
 
 Atlas is an **agentic UI built with Angular** and powered by **Gemini**. Instead of replying with plain text, each tool call renders a live, interactive Angular component while the answer is still streaming in. Two specialist agents pass work back and forth, and you can step in at any point to approve, reject, or choose between options.
 
@@ -16,8 +19,6 @@ The demo is a travel planner: two agents, **TripPlanner** and **ExperienceCurato
 
 - [Feature highlights](#feature-highlights)
 - [Architecture](#architecture)
-  - [System overview](#system-overview)
-  - [The agent turn, end to end](#the-agent-turn-end-to-end)
   - [Layer map](#layer-map)
   - [The `AgentEvent` catalog](#the-agentevent-catalog)
   - [The tool contract: manifest + descriptor](#the-tool-contract-manifest--descriptor)
@@ -71,88 +72,6 @@ The demo is a travel planner: two agents, **TripPlanner** and **ExperienceCurato
 ---
 
 ## Architecture
-
-### System overview
-
-```mermaid
-flowchart TD
-  subgraph UI["Features & shared UI (standalone, OnPush, Signals)"]
-    Home["Home · prompt composer<br/>image + voice input"]
-    Cards["Tool cards via NgComponentOutlet"]
-    Thought["Thinking panel"]
-    Obs["Cost meter · Observability drawer · Agent graph"]
-  end
-
-  subgraph Runtime["Agent runtime (core)"]
-    Gemini["GeminiService.streamAgentTurn"]
-    Loop["agent-loop · runAgentTurn"]
-    Store["AgentEventStore<br/>events[] + raw Content[]"]
-    Registry["ToolRegistry<br/>manifest (eager) + descriptor (lazy)"]
-    Interrupts["InterruptService (HITL)"]
-    Agents["AgentRegistry (handoff)"]
-  end
-
-  subgraph Cross["Cross-cutting"]
-    ObsSvc["TokenAccountant · Budget · Observability"]
-    Errors["normalizeError · ErrorService · Logger (redacted)"]
-    Persist["IndexedDB · localStorage · sessionStorage"]
-    Crypto["WebCrypto · AES-GCM + PBKDF2"]
-  end
-
-  API[("Gemini API")]
-
-  Home --> Gemini --> Loop
-  Loop <--> Store
-  Loop --> Registry --> Cards
-  Loop <--> Interrupts
-  Cards -.approve / reject / choose.-> Interrupts
-  Loop <--> Agents --> Obs
-  Loop <--> API
-  Store --> UI
-  Loop --> ObsSvc --> Obs
-  Runtime --> Errors
-  Store --> Persist
-  Persist --> Crypto
-```
-
-### The agent turn, end to end
-
-The main entry point is `GeminiService.streamAgentTurn` → `runAgentTurn` → `streamRound` → `settleRoundToolCalls` → `applyHandoffIfRequested` in [`core/services/agent-loop.ts`](./src/app/core/services/agent-loop.ts). Reading those methods in order gives you the whole flow.
-
-```mermaid
-sequenceDiagram
-  actor User
-  participant Home
-  participant Loop as agent-loop (runAgentTurn)
-  participant API as Gemini API
-  participant Registry as ToolRegistry
-  participant UI as Tool card (UI)
-  participant Store as AgentEventStore
-
-  User->>Home: Enter prompt (+ optional image/voice)
-  Home->>Loop: streamAgentTurn(input, turnId)
-  Loop->>Store: begin turn, append user Content[]
-  loop each round (budget-checked)
-    Loop->>API: generateContentStream(history, tools)
-    API-->>Loop: chunks (thoughts, text, tool calls)
-    Loop->>Store: append chunk to raw history + emit AgentEvents
-    alt tool calls present
-      Loop->>Registry: settle calls in parallel (Zod-validated)
-      opt interruptive tool
-        Loop-->>UI: interrupt_request
-        UI-->>Loop: approve / reject / choose
-      end
-      Registry-->>Loop: tool results
-      Loop->>Store: append tool responses
-      opt handoffTo called
-        Loop->>Loop: switch active agent (+1 round)
-      end
-    else no tool calls
-      Loop-->>Home: turn_complete
-    end
-  end
-  Store-->>Home: streamed events → thinking, cards, markdown
-```
 
 ### Layer map
 
