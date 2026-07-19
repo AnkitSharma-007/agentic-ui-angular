@@ -220,19 +220,19 @@
   gap: 0.55rem;
 
   li {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.6rem;
+    position: relative;
+    padding-left: 1.7rem;
     font-size: var(--text-sm);
     line-height: 1.55;
     color: var(--mat-sys-on-surface);
 
     mat-icon {
-      flex-shrink: 0;
+      position: absolute;
+      left: 0;
+      top: 1px;
       font-size: var(--text-lg);
       width: 18px;
       height: 18px;
-      margin-top: 1px;
       color: #1f8a4b;
     }
   }
@@ -251,7 +251,7 @@ code {
   padding: 0.12rem 0.4rem;
   border-radius: 4px;
   border: 1px solid var(--mat-sys-outline-variant);
-  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 
 @include below(phone) {

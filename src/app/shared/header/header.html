@@ -47,7 +47,7 @@
         routerLinkActive="active"
         [routerLinkActiveOptions]="link.exact ? { exact: true } : { exact: false }"
       >
-        <span class="material-symbols-outlined" aria-hidden="true">{{ link.icon }}</span>
+        <span class="material-symbols-outlined menu-item-icon" aria-hidden="true">{{ link.icon }}</span>
         <span>{{ link.label }}</span>
       </a>
     }
@@ -75,7 +75,7 @@
   <mat-menu #themeMenu="matMenu">
     @for (option of themeOptions; track option.id) {
       <button mat-menu-item (click)="setTheme(option.id)" [class.active]="theme.preference() === option.id">
-        <span class="material-symbols-outlined" aria-hidden="true">{{ option.icon }}</span>
+        <span class="material-symbols-outlined menu-item-icon" aria-hidden="true">{{ option.icon }}</span>
         <span>{{ option.label }}</span>
         @if (theme.preference() === option.id) {
           <span class="material-symbols-outlined check" aria-hidden="true">check</span>

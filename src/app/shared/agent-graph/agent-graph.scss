@@ -210,16 +210,56 @@
   100% { background-position: 200% 0; }
 }
 
+@keyframes connector-glide-v {
+  0% { background-position: 0 -100%; }
+  100% { background-position: 0 200%; }
+}
+
 @include below(tablet) {
   .nodes {
     flex-direction: column;
     gap: 0.625rem;
   }
 
+  // In a column, flex-basis sizes the main axis (height). The row-layout
+  // `flex: 1 1 240px` would otherwise force every card to a 240px-tall block.
+  .node {
+    flex: 0 0 auto;
+  }
+
+  // Stacked layout: a true vertical connector. Rotating the whole element would
+  // scale the full-width line into a giant vertical bar that overruns the cards.
   .connector {
-    width: 100%;
-    height: 32px;
-    transform: rotate(90deg);
+    align-self: center;
+    width: 32px;
     min-width: 0;
+    height: 32px;
+    transform: none;
+
+    .connector-line {
+      top: 4px;
+      bottom: 4px;
+      left: 50%;
+      right: auto;
+      width: 2px;
+      height: auto;
+      transform: translateX(-50%);
+    }
+
+    .connector-arrow {
+      transform: rotate(90deg);
+    }
+
+    &.lit .connector-line {
+      background: linear-gradient(
+        180deg,
+        transparent,
+        var(--mat-sys-primary),
+        var(--mat-sys-tertiary),
+        transparent
+      );
+      background-size: 100% 200%;
+      animation: connector-glide-v 1.6s linear infinite;
+    }
   }
 }

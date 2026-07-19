@@ -94,6 +94,22 @@
   flex: 1 1 auto;
 }
 
+// Menu-item icons are raw Material Symbols spans (not <mat-icon>), so they lack
+// a fixed box. Without one, each glyph's intrinsic width differs and the labels
+// start at ragged x-positions — pin a square box so labels align in a column.
+.menu-item-icon {
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-right: 0.5rem;
+  font-size: var(--text-xl);
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+}
+
 .check {
   margin-left: auto;
   font-size: var(--text-lg);
