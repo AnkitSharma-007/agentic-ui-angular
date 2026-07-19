@@ -45,7 +45,11 @@ export class ObservabilityDrawerComponent {
   protected readonly streamStats = this.store.stats;
 
   // Aside stays mounted for slide transition — manual focus management instead of cdkTrapFocus auto-capture.
-  private readonly closeBtn = viewChild<ElementRef<HTMLButtonElement>>('closeBtn');
+  // Read ElementRef explicitly: #closeBtn sits on a mat-icon-button (a component),
+  // so a bare viewChild would return the MatIconButton instance (no .nativeElement).
+  private readonly closeBtn = viewChild<unknown, ElementRef<HTMLButtonElement>>('closeBtn', {
+    read: ElementRef,
+  });
   private previouslyFocused: HTMLElement | null = null;
 
   constructor() {

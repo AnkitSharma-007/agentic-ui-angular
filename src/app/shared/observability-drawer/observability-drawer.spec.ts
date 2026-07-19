@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideZonelessChangeDetection } from '@angular/core';
+import { ElementRef, provideZonelessChangeDetection } from '@angular/core';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ObservabilityDrawerComponent } from './observability-drawer';
@@ -31,6 +31,25 @@ describe('ObservabilityDrawerComponent', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     expect(aside?.getAttribute('aria-hidden')).toBe('false');
+  });
+
+  it('resolves the #closeBtn query to the button ElementRef, not the MatIconButton instance', async () => {
+    const fixture = TestBed.createComponent(ObservabilityDrawerComponent);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // #closeBtn sits on a mat-icon-button (a component). Without an explicit
+    // `read: ElementRef`, the query returns the MatIconButton instance, whose
+    // `.nativeElement` is undefined — so the open-time focus() threw
+    // "Cannot read properties of undefined (reading 'focus')".
+    const ref = (
+      fixture.componentInstance as unknown as {
+        closeBtn: () => ElementRef<HTMLButtonElement> | undefined;
+      }
+    ).closeBtn();
+
+    expect(ref).toBeInstanceOf(ElementRef);
+    expect(ref?.nativeElement).toBeInstanceOf(HTMLButtonElement);
   });
 
   it('returns focus to the previously-focused element when the drawer closes', async () => {
