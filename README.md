@@ -1,294 +1,443 @@
-# Atlas: Agents that build their own UI
+# Atlas — Agents that build their own UI
 
-Atlas is an **agentic UI in Angular** powered by **Gemini**. Tool calls don't return text. They instantiate live Angular components mid-stream, two specialist agents hand off control to each other, and the user is a first-class node in the agent graph with approve, reject, and choose edges.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![Built with Angular](https://img.shields.io/badge/Built%20with-Angular-dd0031.svg)](https://angular.dev)
+[![Powered by Gemini](https://img.shields.io/badge/Powered%20by-Gemini-4285F4.svg)](https://ai.google.dev)
 
-Around the agent loop sits a production-grade frontend: a live cost-and-context meter, a waterfall observability view, a per-turn budget governor, a no-code custom-tool builder, an IndexedDB replay library, and a passphrase-encrypted Bring-Your-Own-Key store. Every token, every tool call, and every handoff is observable, budgeted, and replayable. Pure frontend SPA, no backend.
+Atlas is an **agentic UI built with Angular** and powered by **Gemini**. Instead of replying with plain text, each tool call renders a live, interactive Angular component while the answer is still streaming in. Two specialist agents pass work back and forth, and you can step in at any point to approve, reject, or choose between options.
 
-It is built to demonstrate a credible **agentic UI runtime** in a real frontend stack, not a notebook or a thin chat wrapper.
+Alongside the agent loop, Atlas ships a polished, real-world frontend: a live cost-and-tokens meter, a timeline view of every step, per-turn spending limits, a no-code tool builder, agent-authored tools, image and voice input, a replay library, and an encrypted store for your own API key. You can watch, budget, and replay every token, tool call, and handoff. **It runs entirely in the browser — there's no backend.**
+
+The demo is a travel planner: two agents, **TripPlanner** and **ExperienceCurator**, plan a trip together, ask for your approval before anything important, and hand off to each other as the conversation shifts. Travel is just the example — the same building blocks work for any agent-driven app. Atlas exists to show a real agentic UI running in a production-style frontend, not a notebook or a thin chat wrapper.
 
 ---
 
-## The one-paragraph pitch
+## Table of contents
 
-A travel-assistant app where two specialist agents (**TripPlanner** and **ExperienceCurator**) collaborate to plan a trip end-to-end. The agents stream their reasoning into a "Thinking" panel, invoke typed tools whose **arguments are the props of an Angular component**, pause for human approval on destructive actions (book a flight, pick an option), and hand off to each other when the conversation pivots. The travel domain is the demo; the architecture is reusable for any agentic surface.
+- [Feature highlights](#feature-highlights)
+- [Architecture](#architecture)
+  - [System overview](#system-overview)
+  - [The agent turn, end to end](#the-agent-turn-end-to-end)
+  - [Layer map](#layer-map)
+  - [The `AgentEvent` catalog](#the-agentevent-catalog)
+  - [The tool contract: manifest + descriptor](#the-tool-contract-manifest--descriptor)
+- [Tech stack](#tech-stack)
+- [Getting started](#getting-started)
+- [Testing](#testing)
+- [Security model](#security-model)
+- [Performance](#performance)
+- [Engineering decisions & trade-offs](#engineering-decisions--trade-offs)
+- [Known limitations / what's mocked](#known-limitations--whats-mocked)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
 
 ---
 
 ## Feature highlights
 
-### The architectural ideas
+### Core ideas
 
-1. **Components as tools.** Each tool ships a [`ToolManifest`](./src/app/core/registry/tool-descriptor.ts) (eager) and a [`ToolDescriptor`](./src/app/core/registry/tool-descriptor.ts) (lazy). The descriptor exposes an Angular component class; the agent loop renders that component via `NgComponentOutlet` while the executor is still running. The same `<app-flight-options-card>` instance is the loading skeleton, the result, and the error state. Its `status` input flips, not its identity.
-2. **Streaming agent runtime, end-to-end.** [`GeminiService.streamAgentTurn`](./src/app/core/services/gemini.service.ts) converts the raw Gemini chunk stream into a typed [`AgentEvent`](./src/app/core/streaming/agent-event.ts) sequence (`turn_start`, `thought_delta`, `tool_call`, `interrupt_request`, `tool_result`, `round_complete`, …). The UI subscribes to that stream with no `Zone.js` magic, OnPush + Signals everywhere.
-3. **Dual-view state.** The [`AgentEventStore`](./src/app/core/streaming/agent-event.store.ts) keeps an append-only `AgentEvent[]` for the UI **and** a raw Gemini `Content[]` history (with `thoughtSignature` blobs preserved verbatim) for the next API round. Two shapes, one source of truth, never drifts.
-4. **Human-in-the-loop interrupts.** Tools marked `interruptive: true` pause the agent loop on a `Promise<InterruptDecision>` resolved by the UI (`InterruptService`). `bookFlight` waits for Approve / Reject; `letUserChoose` lets the user pick a row from a comparison grid; the user's pick is fed back to the model as the tool's response.
-5. **Multi-agent handoff with a reactive graph.** [`AgentRegistry`](./src/app/core/agents/agent-registry.service.ts) holds the active agent and a per-turn handoff log. The shared `handoffTo` tool transitions control between agents; the [`<app-agent-graph>`](./src/app/shared/agent-graph/agent-graph.ts) visualises it live.
+1. **Components as tools.** Each tool ships a [`ToolManifest`](./src/app/core/registry/tool-descriptor.ts) (loaded eagerly) and a [`ToolDescriptor`](./src/app/core/registry/tool-descriptor.ts) (loaded lazily). The descriptor points at an Angular component, and the agent loop renders it with `NgComponentOutlet` while the tool is still running. The same `<app-flight-options-card>` is the loading state, the result, and the error state — only its `status` input changes, not the component itself.
+2. **A streaming agent runtime.** [`GeminiService.streamAgentTurn`](./src/app/core/services/gemini.service.ts) wraps the loop in an `Observable`, and [`runAgentTurn`](./src/app/core/services/agent-loop.ts) turns the raw Gemini stream into a clean sequence of typed [`AgentEvent`](./src/app/core/streaming/agent-event.ts)s (`turn_start`, `thought_delta`, `tool_call`, `interrupt_request`, `tool_result`, `round_complete`, …). The UI just subscribes — zoneless, with OnPush and Signals throughout.
+3. **Dual-view state.** The [`AgentEventStore`](./src/app/core/streaming/agent-event.store.ts) keeps two views of the same conversation: a list of `AgentEvent`s for the UI, and the raw Gemini `Content[]` history (with `thoughtSignature` data kept intact) for the next request. Both are built from the same turn, so they never drift apart.
+4. **Human in the loop.** Tools marked `interruptive: true` pause the loop and wait for your decision through the [`InterruptService`](./src/app/core/registry/interrupt.service.ts). `bookFlight` waits for Approve or Reject; `letUserChoose` lets you pick a row from a comparison table. Your choice is sent back to the model as the tool's result.
+5. **Multi-agent handoff.** The [`AgentRegistry`](./src/app/core/agents/agent-registry.service.ts) tracks the active agent and every handoff in a turn. The shared `handoffTo` tool passes control between agents, and the [`<app-agent-graph>`](./src/app/shared/agent-graph/agent-graph.ts) shows it live. A handoff always gives the receiving agent a chance to respond, so it's never the silent last step of a turn.
 
-### The operator-grade surface
+### Monitoring & cost control
 
-6. **Live observability dashboard.** A side drawer ([`ObservabilityDrawerComponent`](./src/app/shared/observability-drawer/observability-drawer.ts)) renders a waterfall of every round and every tool call on a shared time axis, colour-coded by status, with usage / latency / cost / model on each row.
-7. **Cost & context meter.** A persistent header pill ([`CostMeterComponent`](./src/app/shared/cost-meter/cost-meter.ts)) shows the live USD spend, token totals, context utilisation, and latency for the current turn. Expandable to a full breakdown by input / output / thinking tokens.
-8. **Per-turn budget governor.** [`BudgetService`](./src/app/core/observability/budget.service.ts) enforces user-configurable caps on tokens, rounds, and dollars. The agent loop checks the budget at the start of every round and short-circuits with a `BUDGET_EXCEEDED:<kind>` finish reason if breached.
-9. **Custom tool builder.** A no-code form ([`/tools`](./src/app/features/tools/tools.ts)) lets users define a tool (name, description, parameters, JSON response template) and Atlas registers it with the runtime _without a reload_. New tools persist in IndexedDB and are available to the agent on the very next prompt.
-10. **Replay library.** Any completed turn can be saved to IndexedDB as a `ReplayPayload`. The [Library](./src/app/features/library/library.ts) lists them; "Play" navigates back to the home page with `?replay=<id>` and the saved `AgentEvent[]` is fed through [`ReplayPlayer`](./src/app/core/replay/replay-player.ts). Same UI, same inter-event timing, no API call.
+6. **Live observability drawer.** A side panel ([`ObservabilityDrawerComponent`](./src/app/shared/observability-drawer/observability-drawer.ts)) shows every round and tool call as a waterfall on one shared timeline, colour-coded by status, with tokens, latency, cost, and model on each row.
+7. **Cost & context meter.** A small pill ([`CostMeterComponent`](./src/app/shared/cost-meter/cost-meter.ts)) shows live spend, token counts, context-window usage, and latency for the current turn. Expand it for a full breakdown by input, output, and thinking tokens, plus lifetime totals.
+8. **Per-turn budget limits.** [`BudgetService`](./src/app/core/observability/budget.service.ts) lets you cap tokens, rounds, and dollars per turn (with quick presets). The loop checks the budget before and after each round and stops the turn with a `BUDGET_EXCEEDED:<kind>` reason if a limit is reached.
 
-### The production basics
+### Agents that extend themselves
 
-11. **BYOK with two storage tiers.** Session-only (cleared on tab close) or AES-GCM encrypted in localStorage behind a PBKDF2-derived key (250 000 iterations). See [`api-key.service.ts`](./src/app/core/services/api-key.service.ts) + [`webcrypto.helpers.ts`](./src/app/core/crypto/webcrypto.helpers.ts).
-12. **Lazy everything.** Routes lazy-load. Tool _implementations_ lazy-load (Zod + components stay out of the initial bundle until used). Leaflet (~140 kB) loads only when the itinerary map enters the viewport via `@defer (on viewport)`. Initial gzip transfer is ~143 kB.
-13. **Zoneless Angular**, standalone components, Signals-first, OnPush across the board, new control flow (`@if`, `@for`, `@defer`).
-14. **Markdown rendering is sanitised by default** (no `bypassSecurityTrustHtml`); model output passes through `marked` (no raw-HTML) and then Angular's `DomSanitizer`.
+9. **No-code tool builder.** A form at [`/tools`](./src/app/features/tools/tools.ts) lets you define a tool — name, description, typed parameters, and a JSON response template with `{{placeholders}}` — and Atlas registers it with the runtime without a reload. New tools are saved in IndexedDB and are available to the agent on the very next prompt.
+10. **Agent-authored tools.** When tool synthesis is enabled, the agent can call `proposeTool` mid-turn to draft a brand-new tool. The proposal appears as an editable card for you to approve; once approved it registers immediately (saved, or session-only if storage isn't available) and is capped per turn so the agent can't keep adding tools endlessly.
+
+### Input & replay
+
+11. **Image and voice input.** The composer accepts images (drag, paste, or file picker), which are resized in the browser before being sent, plus voice dictation through the Web Speech API, with a clean fallback when it isn't supported.
+12. **Replay library.** Any finished turn can be saved to IndexedDB. The [Library](./src/app/features/library/library.ts) lists your saved runs; clicking "Replay" reopens the home page with `?replay=<id>` and plays the saved events back through [`ReplayPlayer`](./src/app/core/replay/replay-player.ts) — same UI, same timing, no API call.
+
+### Production essentials
+
+13. **Bring your own key, two ways.** Keep your Gemini key for the session only (cleared when the tab closes), or save it encrypted in the browser with AES-GCM behind a passphrase-derived key. See [`api-key.service.ts`](./src/app/core/services/api-key.service.ts) and [`webcrypto.helpers.ts`](./src/app/core/crypto/webcrypto.helpers.ts).
+14. **One error pipeline.** Every failure follows the same path: `raw error → normalizeError → AppError → logged (secrets redacted) → shown to the user` (as a toast, an app-shell banner, an inline message, or silently). See [`docs/error-handling.md`](./docs/error-handling.md).
+15. **Built-in resilience.** Requests can be cancelled at any time, stalled streams time out and can be retried, setup steps use retry-with-backoff (never mid-stream), and the app checks connectivity before sending a request that would fail anyway.
+16. **Lazy by default.** Routes load on demand. Tool implementations load only when used, so Zod and tool components stay out of the initial bundle. Leaflet loads only when the map scrolls into view, via `@defer (on viewport)`.
+17. **Modern Angular.** Standalone, zoneless, Signals-first, OnPush everywhere, the new control flow (`@if`, `@for`, `@defer`), and Material theming with light, dark, and system modes.
+18. **Safe Markdown by default.** Model output goes through `marked` (raw HTML is escaped, unsafe links are dropped) and then Angular's `DomSanitizer`. Atlas never calls `bypassSecurityTrustHtml`.
 
 ---
 
-## Architecture at a glance
+## Architecture
 
-**Layers**, from `src/app/`:
+### System overview
+
+```mermaid
+flowchart TD
+  subgraph UI["Features & shared UI (standalone, OnPush, Signals)"]
+    Home["Home · prompt composer<br/>image + voice input"]
+    Cards["Tool cards via NgComponentOutlet"]
+    Thought["Thinking panel"]
+    Obs["Cost meter · Observability drawer · Agent graph"]
+  end
+
+  subgraph Runtime["Agent runtime (core)"]
+    Gemini["GeminiService.streamAgentTurn"]
+    Loop["agent-loop · runAgentTurn"]
+    Store["AgentEventStore<br/>events[] + raw Content[]"]
+    Registry["ToolRegistry<br/>manifest (eager) + descriptor (lazy)"]
+    Interrupts["InterruptService (HITL)"]
+    Agents["AgentRegistry (handoff)"]
+  end
+
+  subgraph Cross["Cross-cutting"]
+    ObsSvc["TokenAccountant · Budget · Observability"]
+    Errors["normalizeError · ErrorService · Logger (redacted)"]
+    Persist["IndexedDB · localStorage · sessionStorage"]
+    Crypto["WebCrypto · AES-GCM + PBKDF2"]
+  end
+
+  API[("Gemini API")]
+
+  Home --> Gemini --> Loop
+  Loop <--> Store
+  Loop --> Registry --> Cards
+  Loop <--> Interrupts
+  Cards -.approve / reject / choose.-> Interrupts
+  Loop <--> Agents --> Obs
+  Loop <--> API
+  Store --> UI
+  Loop --> ObsSvc --> Obs
+  Runtime --> Errors
+  Store --> Persist
+  Persist --> Crypto
+```
+
+### The agent turn, end to end
+
+The main entry point is `GeminiService.streamAgentTurn` → `runAgentTurn` → `streamRound` → `settleRoundToolCalls` → `applyHandoffIfRequested` in [`core/services/agent-loop.ts`](./src/app/core/services/agent-loop.ts). Reading those methods in order gives you the whole flow.
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant Home
+  participant Loop as agent-loop (runAgentTurn)
+  participant API as Gemini API
+  participant Registry as ToolRegistry
+  participant UI as Tool card (UI)
+  participant Store as AgentEventStore
+
+  User->>Home: Enter prompt (+ optional image/voice)
+  Home->>Loop: streamAgentTurn(input, turnId)
+  Loop->>Store: begin turn, append user Content[]
+  loop each round (budget-checked)
+    Loop->>API: generateContentStream(history, tools)
+    API-->>Loop: chunks (thoughts, text, tool calls)
+    Loop->>Store: append chunk to raw history + emit AgentEvents
+    alt tool calls present
+      Loop->>Registry: settle calls in parallel (Zod-validated)
+      opt interruptive tool
+        Loop-->>UI: interrupt_request
+        UI-->>Loop: approve / reject / choose
+      end
+      Registry-->>Loop: tool results
+      Loop->>Store: append tool responses
+      opt handoffTo called
+        Loop->>Loop: switch active agent (+1 round)
+      end
+    else no tool calls
+      Loop-->>Home: turn_complete
+    end
+  end
+  Store-->>Home: streamed events → thinking, cards, markdown
+```
+
+### Layer map
+
+From `src/app/`:
 
 ```
 core/                singleton services and types; never any UI
 ├── services/        ApiKeyService, GeminiService, ThemeService, ModelSelectionService
-├── streaming/       AgentEvent, AgentEventStore, chunkToEvents operator, raw-history reducer
+├── streaming/       AgentEvent, AgentEventStore, chunk→event operator, raw-history reducer
 ├── registry/        ToolRegistry, ToolDescriptor, InterruptService, parallel tool execution
-├── observability/   TokenAccountantService, BudgetService, ObservabilityService, pricing
 ├── agents/          AgentDefinition, AgentRegistry, built-in agent specs
-├── custom-tools/    CustomToolsService, IndexedDB-backed user-defined tools
+├── observability/   TokenAccountantService, BudgetService, ObservabilityService, pricing
+├── custom-tools/    CustomToolsService, IndexedDB-backed user- and agent-authored tools
 ├── replay/          ReplayService (persistence), ReplayPlayer (playback)
-├── crypto/          WebCrypto AES-GCM + PBKDF2 helpers
+├── media/           image attachment downscaling, speech (voice) input
+├── crypto/          WebCrypto AES-GCM + PBKDF2 helpers, session key store
 ├── storage/         Promise-shaped IndexedDB wrapper
-└── errors.ts        Shared SDK-error → human-readable mapper
+├── errors/          AppError taxonomy, normalizeError, ErrorService, global handler
+├── logging/         LoggerService, log sinks, redaction
+├── connectivity/    online/offline signals
+└── settings/        persisted feature flags (e.g. tool synthesis)
 
 features/            one folder per route, all lazy-loaded
-├── home/            chat + tool-render surface
-├── onboarding/      API key entry, test, save (session or encrypted-local)
+├── home/            chat + tool-render surface (composer, thinking, cards, replay)
+├── onboarding/      API key entry, test, save (session or encrypted-local), unlock
 ├── library/         saved replays
 ├── tools/           custom tool builder
-├── settings/        model selection, budgets, theme, key management
+├── settings/        model selection, budgets, tool synthesis, theme, key management
+├── guide/           interactive product tour
 ├── about/           project overview
-└── security/        threat model + crypto choices
+├── security/        threat model + crypto choices
+└── not-found/       404
 
 shared/              reusable UI
 ├── header/          app bar with nav + observability + theme + settings
-├── footer/          minimal footer
 ├── thought/         live thought-stream panel
 ├── markdown/        sanitised Markdown renderer
-├── cost-meter/      live cost/token/context pill (eager)
-├── observability-drawer/   waterfall + detail panel (eager)
+├── notifications/   toast host + service (dedupe, auto-dismiss, actions)
+├── cost-meter/      live cost/token/context pill
+├── observability-drawer/   waterfall + detail panel
 ├── agent-graph/     active-agent + handoff visualiser
+├── error-dialog/, error-boundary/   surfaces for handled + chunk-load failures
+├── ui/              shared primitives (metric, section-head, meter, page-header)
 └── tools/           one folder per tool (manifest + descriptor + component + types)
 ```
 
-For the agent loop itself, the canonical entry point is [`GeminiService.streamAgentTurn`](./src/app/core/services/gemini.service.ts) → `runAgentLoop` → `streamRound` → `settleRoundToolCalls` → `applyHandoffIfRequested`. Read those five methods top-to-bottom for a complete picture in ~150 lines.
+### The `AgentEvent` catalog
+
+The loop emits a typed stream of events. The UI simply reacts to each `type` ([`agent-event.ts`](./src/app/core/streaming/agent-event.ts)):
+
+| Event                | Meaning                                                           |
+| -------------------- | ----------------------------------------------------------------- |
+| `turn_start`         | A new turn began; state is initialised.                           |
+| `thought_delta`      | Incremental "thinking" text.                                      |
+| `thought_complete`   | The thought block ended.                                          |
+| `text_delta`         | Incremental visible response text.                                |
+| `tool_call`          | The model requested a function call (`callId`, `name`, `args`).   |
+| `interrupt_request`  | An interruptive tool is waiting for your decision.                |
+| `interrupt_resolved` | You decided (`approve` / `reject` / `select`).                    |
+| `tool_result`        | A tool finished (a result, or `{ error }`).                       |
+| `round_complete`     | One model round finished (finish reason, latency, token usage).   |
+| `agent_handoff`      | The active agent switched mid-turn.                               |
+| `turn_complete`      | The turn ended (`STOP`, `MAX_AGENT_ROUNDS`, `BUDGET_EXCEEDED:*`). |
+
+### The tool contract: manifest + descriptor
+
+Every tool has two parts: a small **manifest** loaded at startup (so the model knows the tool exists) and a **descriptor** loaded on first use (the Zod schema, the executor, and the component):
+
+```ts
+// Eager: name + Gemini function declaration + flags + a lazy loader.
+export const bookFlightManifest: ToolManifest = {
+  name: 'bookFlight',
+  declaration: {
+    /* Gemini FunctionDeclaration */
+  },
+  interruptive: true, // pauses the loop for human approval
+  load: () => import('./booking-confirmation-card.descriptor').then((m) => m.descriptor),
+};
+
+// Lazy: schema + component + executor. Swap `execute` for a real backend
+// and the component, declaration, and schema stay identical.
+export const descriptor: ToolDescriptor = {
+  argsSchema: z.object({
+    /* … */
+  }),
+  component: BookingConfirmationCardComponent,
+  execute: async (args, ctx) => {
+    /* returns the tool result */
+  },
+};
+```
+
+The registry won't run a tool if its arguments fail the Zod schema — instead it returns a typed `tool_result` error the agent can recover from.
 
 ---
 
 ## Tech stack
 
-| Concern           | Choice                                                                                                                   |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Framework         | **Angular** (standalone, zoneless, Signals, new control flow)                                                            |
-| UI kit            | **Angular Material** (token-based theming, light/dark/system)                                                            |
-| LLM               | **Gemini** via [`@google/genai`](https://www.npmjs.com/package/@google/genai) (streaming; tier picker in Settings)       |
-| Reactive state    | **Signals** for component state, **RxJS** for streams                                                                    |
-| Schema validation | **Zod** (lazy-loaded, kept out of the initial bundle)                                                                    |
-| Map rendering     | **Leaflet** (lazy-loaded via `@defer (on viewport)`)                                                                     |
-| Markdown          | **marked** with `DomSanitizer`                                                                                           |
-| Persistence       | **IndexedDB** (replays, custom tools); **localStorage** (budgets, encrypted key blob); **sessionStorage** (session keys) |
-| Crypto            | **WebCrypto** (AES-GCM + PBKDF2-SHA256, 250k iterations)                                                                 |
-| Test runner       | **Vitest** via Angular's `@angular/build:unit-test` builder                                                              |
-| Mock IDB in tests | **fake-indexeddb**                                                                                                       |
-| Build             | **esbuild + Vite** (Angular's `@angular/build` toolchain)                                                                |
+| Concern           | Choice                                                                                                                                                     |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Framework         | **Angular** (standalone, zoneless, Signals, new control flow)                                                                                              |
+| UI kit            | **Angular Material** (token-based theming, light / dark / system)                                                                                          |
+| LLM               | **Gemini** via [`@google/genai`](https://www.npmjs.com/package/@google/genai) (streaming; model-tier picker in Settings)                                   |
+| Reactive state    | **Signals** for component state, **RxJS** for streams                                                                                                      |
+| Schema validation | **Zod** (lazy-loaded, kept out of the initial bundle)                                                                                                      |
+| Map rendering     | **Leaflet** (lazy-loaded via `@defer (on viewport)`)                                                                                                       |
+| Markdown          | **marked** with `DomSanitizer`                                                                                                                             |
+| Persistence       | **IndexedDB** (replays, custom tools, session KEK); **localStorage** (budgets, encrypted key blob, preferences); **sessionStorage** (session key envelope) |
+| Crypto            | **WebCrypto** (AES-GCM + PBKDF2-SHA256)                                                                                                                    |
+| Unit tests        | **Vitest** via Angular's `@angular/build:unit-test` builder                                                                                                |
+| E2E tests         | **Playwright** (headless Chromium)                                                                                                                         |
+| Mock IDB in tests | **fake-indexeddb**                                                                                                                                         |
+| Build             | **esbuild + Vite** (Angular's `@angular/build` toolchain)                                                                                                  |
 
-The full dependency manifest lives in [`package.json`](./package.json).
+The full dependency list lives in [`package.json`](./package.json).
 
 ---
 
-## Run it locally
+## Getting started
 
-Atlas is a pure frontend SPA. You bring your own Gemini API key; nothing about the app talks to any other server.
+Atlas runs entirely in the browser. You bring your own Gemini API key, and nothing is sent anywhere except Google's Gemini API.
 
 ### Prerequisites
 
-| Tool               | Tested with                             | Why                                                    |
-| ------------------ | --------------------------------------- | ------------------------------------------------------ |
-| **Node.js**        | current LTS (`v20.x` or `v22.x` tested) | required by Angular CLI                                |
-| **npm**            | `10.8+`                                 | shipped with current LTS Node                          |
-| **Modern browser** | Chrome / Edge / Safari / Firefox latest | needs `crypto.subtle` and modern IndexedDB             |
-| **Gemini API key** | free tier is enough                     | grab one from <https://aistudio.google.com/app/apikey> |
+| Tool               | Notes                                                                                                 |
+| ------------------ | ----------------------------------------------------------------------------------------------------- |
+| **Node.js**        | A current LTS release. The supported range is declared in [`package.json`](./package.json) `engines`. |
+| **npm**            | Ships with current LTS Node (see `packageManager` in `package.json`).                                 |
+| **Modern browser** | Chrome / Edge / Safari / Firefox latest — needs `crypto.subtle` and modern IndexedDB.                 |
+| **Gemini API key** | The free tier is enough. Grab one from <https://aistudio.google.com/app/apikey>.                      |
 
 ### Install
 
-From this directory (the `app/` folder of the project):
-
 ```bash
+git clone https://github.com/AnkitSharma-007/angular-agentic-ui.git
+cd angular-agentic-ui
 npm install
 ```
-
-`npm install` may take 60–90 seconds on a cold cache; you should see no peer-dep warnings on a current LTS Node.
 
 ### Start the dev server
 
 ```bash
 npm start
-# or, if you prefer:
-ng serve
+# or: ng serve
 ```
 
 Open **<http://localhost:4200>**.
 
-The first time the app loads, it routes you to an onboarding screen:
+The first time the app loads, it takes you to an onboarding screen:
 
 1. Paste your Gemini API key.
-2. _(Optional)_ Click **Test connection**. Atlas issues a single fast "say ok" call to Gemini and reports the round-trip status.
+2. _(Optional)_ Click **Test connection**. Atlas makes one quick call to Gemini and tells you whether it worked.
 3. Choose where to store the key:
-   - **For this session only** (default, safest, lives in `sessionStorage` until tab close).
-   - **Remember on this device**: you set a passphrase, the key is AES-GCM encrypted with a PBKDF2-derived key and stored in `localStorage`. On the next visit you re-enter the passphrase to unlock.
-4. Click **Continue** and you land on the chat surface.
+   - **For this session only** (default and safest — kept in `sessionStorage`, cleared when the tab closes).
+   - **Remember on this device**: you set a passphrase, and the key is encrypted with AES-GCM (behind a passphrase-derived key) and saved in `localStorage`. Next visit, you re-enter the passphrase to unlock.
+4. Click **Continue** to land on the chat screen.
 
 ### Build a production bundle
 
 ```bash
 npm run build
-# Output: dist/agentic-ui-angular/
+# Output: dist/angular-agentic-ui/
 ```
 
-Hosting is out of scope. Drop the `dist/` artefact on any static host (Vercel, Netlify, GitHub Pages, S3+CloudFront). No server-side state.
+Hosting is out of scope. Copy the `dist/` output to any static host (Vercel, Netlify, GitHub Pages, S3 + CloudFront) — there's no server-side state. The production build ships a strict Content-Security-Policy (see [Security model](#security-model)).
 
-### Run the test suite
+### A quick tour (covers every feature)
+
+1. **Sample prompt: "Plan a weekend."** Click it → **Send**.
+   - The **Thinking** panel fills in as the agent reasons.
+   - **`searchFlights`** and **`searchHotels`** run in parallel; their cards show skeleton loaders, then finish independently.
+   - The agent calls **`letUserChoose`** — pick any flight — then **`bookFlight`**, which pauses for **Approve / Reject**. Approve, and watch the card move from pending → running → confirmed.
+   - Finally **`renderItinerary`** shows a Leaflet map (loaded as a separate chunk — check the network tab).
+2. **Open the Observability drawer** (header monitoring icon) to see one row per round and per tool call. Click a row for details.
+3. **Expand the Cost Meter** for a breakdown by input / output / thinking tokens, plus live context-window usage.
+4. **Hand off to the second agent** with the **"Activities only"** prompt — the agent calls `handoffTo` and `findActivities` runs under ExperienceCurator.
+5. **Save the run**, open the **Library**, and **Replay** it — same UI, same timing, no API call.
+6. **Build a custom tool** at **Tools** → **Load example**, save the `searchWeather` tool, then go back to Chat and ask about the weather.
+7. **Set a budget** in **Settings**, apply a preset, and send a bigger prompt to watch the budget stop the turn.
+
+---
+
+## Testing
+
+Atlas is tested at two levels.
+
+### Unit & integration (Vitest)
 
 ```bash
-npm test -- --watch=false
-```
-
-Expected: **46 test files / 296 tests passing** in a few seconds.
-
-Coverage runs through the same Vitest runner and writes a full HTML report under `coverage/`:
-
-```bash
+npm test
+# with coverage:
 npm run test:coverage
 ```
 
-Current numbers hover in the **low-to-mid seventies** across lines, statements, branches, and functions. The pure runtime (agent loop, streaming primitives, tool registry, observability, persistence, crypto) sits well above that; the larger feature-page templates and the `GeminiService` SDK-adapter layer pull the headline number down.
+The suite focuses on the core runtime logic that matters most to keep stable, plus quick smoke tests for every tool component and feature page:
 
-The suite covers the deterministic, pure parts of the runtime that would be costly to regress, plus smoke tests for every tool component and feature page:
+- **Agent loop & integration**: the full multi-round flow (thinking → tool call → settle → handoff → finish) against a mocked Gemini stream.
+- **Streaming primitives**: the chunk→event operator, the event store, the raw-history reducer, and chunk summarisation.
+- **Tool runtime**: the registry, parallel execution, and interrupts.
+- **Persistence & security**: IndexedDB helpers, WebCrypto helpers, the API key service, and replay save/playback.
+- **Observability**: token accounting, the budget limits, and the observability + drawer services.
+- **Agents & custom tools**: the agent registry, custom-tool parsing, and declaration/descriptor generation.
+- **UI surfaces**: smoke tests for every tool card, the cost meter, agent graph, markdown / thought renderers, header, notifications, and feature pages.
 
-- **Agent loop**: `agent-loop.spec.ts` and `agent-turn.integration.spec.ts` exercise the full multi-round flow (thinking → tool call → settle → handoff → finish) against a mocked Gemini stream.
-- **Streaming primitives**: `to-agent-event.operator.spec.ts`, `agent-event.store.spec.ts`, `raw-history.reducer.spec.ts`, `agent-stream.spec.ts`.
-- **Tool runtime**: `tool-registry.spec.ts`, `tool-execution.spec.ts`, `interrupt.service.spec.ts`.
-- **Persistence & security**: `indexeddb.helpers.spec.ts`, `webcrypto.helpers.spec.ts`, `api-key.service.spec.ts`, `replay.service.spec.ts`, `replay-player.spec.ts`.
-- **Observability**: `budget.service.spec.ts`, `token-accountant.service.spec.ts`, `observability.service.spec.ts`, `observability-drawer.service.spec.ts`.
-- **Agents & custom tools**: `agent-registry.service.spec.ts`, `custom-tools.service.spec.ts`, `custom-tool.types.spec.ts`.
-- **UI surfaces**: smoke specs for every tool card (flights, hotels, comparison, booking, activities, custom, handoff), the cost meter, agent graph, markdown / thought renderers, header / footer, and feature pages (about, security, library, onboarding, settings, tools).
+The core runtime — agent loop, streaming, tool registry, observability, persistence, crypto — is very well covered; the larger feature-page templates and the `GeminiService` adapter layer bring the overall number down.
 
----
+### End-to-end (Playwright)
 
-## Using the app
+The e2e specs live in [`e2e/`](./e2e) and follow the manual test plan in [`TEST_CASES.md`](./TEST_CASES.md). They run headless Chromium against a local build. A few cases need a real Gemini key, passed to the test process as an environment variable and never committed.
 
-Once you're past onboarding, the home page has three regions:
+```bash
+# one-time: install browser binaries
+npx playwright install
 
+# serve the app on the port the tests expect, then run them
+ng serve --port 4300
+npx playwright test --config e2e/playwright.config.ts
 ```
-+-----------------------------------------------------------------------------+
-| Header [ Chat | Library | Tools | About | Security ]   $0.012  ⚙  observe  |
-+-----------------------------------------------------------------------------+
-|                                                                             |
-|  Hero copy + 4 sample prompts                                               |
-|                                                                             |
-|  [ Thinking ▾ ]  ← live thought-summary stream                              |
-|                                                                             |
-|  [ Tool call cards (NgComponentOutlet) ]                                    |
-|     · Flights · Hotels · Comparison · Booking · Itinerary · Activities ·    |
-|     · Handoff notice · Custom-tool card ·                                   |
-|                                                                             |
-|  [ Response (Markdown) ]                                                    |
-|                                                                             |
-|  +-----------------------------------------------------------------+        |
-|  | Prompt textarea                                          [Send] |        |
-|  +-----------------------------------------------------------------+        |
-|                                                                             |
-+-----------------------------------------------------------------------------+
-```
-
-### A suggested tour (≈4 minutes, hits every feature)
-
-1. **Sample prompt: "Plan a weekend"** (top-left card). Click → click **Send**.
-   - You'll see the **Thinking** panel fill in real time.
-   - **`searchFlights`** and **`searchHotels`** kick off in **parallel**; their cards appear with skeleton loaders, then settle independently (flights first, then hotels, on different mock latencies).
-   - The agent then calls **`letUserChoose`**. Pick any flight.
-   - Then **`bookFlight`**. The card pauses on **Approve / Reject**. Approve. Watch the card flip from pending → running → confirmed.
-   - Finally **`renderItinerary`** mounts a Leaflet map (lazy-loaded chunk; check the network tab).
-2. **Open the Observability drawer** (top-right `monitoring` icon). You'll see a waterfall row per round and per tool call. Click any row for the detail panel.
-3. **Expand the Cost Meter** (header pill, e.g. `$0.012 · 1.2k`). Pricing breakdown by input / output / thinking tokens, plus the live context-window utilisation.
-4. **Hand off to the second agent.** Use the **"Activities only"** sample prompt. The model calls `handoffTo` with `specialist: "experienceCurator"`. The agent-graph header above the cards animates to the new active node and `findActivities` runs under ExperienceCurator.
-5. **Save the run.** Click **Save** at the bottom of the response card. Navigate to **Library**.
-6. **Replay it.** Click **Replay** on the saved row. The home page reloads with no API call: same UI, same timing, deterministic.
-7. **Build a custom tool.** Go to **Tools** → click **Load example**. Save the `searchWeather` tool. Return to **Chat**. Ask _"What's the weather in Goa on 2026-06-15?"_ and the agent picks up your tool, with the response rendering in a generic custom-tool card.
-8. **Set a budget.** Go to **Settings** → apply the **Tight** budget preset (3 rounds, 10k tokens, $0.02). Send a complex prompt. When the cap is hit, the turn ends with `BUDGET_EXCEEDED:tokens` (or rounds / cost) and a banner shows which limit fired.
-
-### The four sample prompts (also visible in the app)
-
-| Card            | Demonstrates                                                                     |
-| --------------- | -------------------------------------------------------------------------------- |
-| Plan a weekend  | Multi-tool agent loop, parallel execution, HITL approval, Leaflet `@defer`       |
-| Activities only | Agent handoff, second specialist, dynamic system prompt + tool gating            |
-| Let me choose   | `letUserChoose` interactive selection, downstream tool reading the picked option |
-| Road trip       | Pure `renderItinerary` showcase, multi-waypoint route on the map                 |
-
----
-
-## Where the interesting code lives
-
-If you have ten minutes to read code, read these in order:
-
-1. **[`core/services/gemini.service.ts`](./src/app/core/services/gemini.service.ts)**: the agent loop. `streamAgentTurn` → `runAgentLoop` → `streamRound` → `settleRoundToolCalls` → `applyHandoffIfRequested`.
-2. **[`core/streaming/to-agent-event.operator.ts`](./src/app/core/streaming/to-agent-event.operator.ts)**: the pure function that turns Gemini chunks into typed events. Heavily unit-tested.
-3. **[`core/streaming/agent-event.store.ts`](./src/app/core/streaming/agent-event.store.ts)**: the dual-view state container.
-4. **[`core/registry/tool-registry.ts`](./src/app/core/registry/tool-registry.ts)** + **[`core/registry/tool-execution.ts`](./src/app/core/registry/tool-execution.ts)**: eager manifests, lazy descriptors, parallel-as-they-settle tool execution.
-5. **[`core/registry/interrupt.service.ts`](./src/app/core/registry/interrupt.service.ts)**: bridges the agent loop's `Promise<InterruptDecision>` with UI signals.
-6. **[`shared/tools/booking-confirmation-card/`](./src/app/shared/tools/booking-confirmation-card)**: the cleanest example of a four-state HITL tool component (`pending_approval` → `running` → `complete` / `rejected`).
-7. **[`core/observability/`](./src/app/core/observability)**: `TokenAccountantService`, `BudgetService`, `ObservabilityService`, `pricing.ts`. All under 100 lines each.
-8. **[`core/custom-tools/`](./src/app/core/custom-tools)**: how a no-code tool spec becomes a registry entry: `custom-tool.types.ts` → `custom-tool-declaration.ts` (eager, zero-dep) → `custom-tool-descriptor.ts` (lazy, Zod + component).
-9. **[`core/crypto/webcrypto.helpers.ts`](./src/app/core/crypto/webcrypto.helpers.ts)** + **[`core/services/api-key.service.ts`](./src/app/core/services/api-key.service.ts)**: AES-GCM envelope, PBKDF2, two storage tiers.
-10. **[`core/replay/replay-player.ts`](./src/app/core/replay/replay-player.ts)**: observable that re-emits a saved event sequence with the original inter-event timing (clamped + speed-scaled).
 
 ---
 
 ## Security model
 
-| Concern                          | How Atlas handles it                                                                                                                                                                                                     |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| API key is never sent to our servers | There is no backend, proxy, or telemetry server. The key is read directly into `GoogleGenAI({ apiKey })` and sent only to Google's Gemini API from your browser.                                                              |
-| Default storage (session tier)   | The key is AES-GCM-encrypted with a random **non-extractable** per-session key (KEK). Only the ciphertext lives in `sessionStorage` (cleared on tab close); the KEK is a `CryptoKey` handle in IndexedDB whose raw bytes can never be read back. The plaintext key is never at rest, and XSS can't exfiltrate the KEK. Survives a reload within the session. |
-| Persistent storage               | AES-GCM-256 with a PBKDF2-SHA256-derived key (250 000 iterations). Salt + IV are random per encryption. The passphrase is never persisted.                                                                               |
-| Wrong passphrase                 | `DecryptionFailedError`: the UI shows a generic "passphrase did not unlock" message; no oracle for brute force.                                                                                                          |
-| Markdown XSS                     | Two-layer defence: `marked` renders raw HTML as inert escaped text (never parsed) and drops links with an unsafe scheme (`javascript:`/`data:`…), and the output still passes through Angular's built-in `DomSanitizer` via `[innerHTML]`. We intentionally do **not** call `bypassSecurityTrustHtml`. |
-| Tool args                        | Every tool descriptor declares a Zod schema. The registry refuses to invoke an executor with invalid args, surfacing a typed `tool_result` error event the agent can recover from.                                       |
-| Replay payloads                  | Stored only in the user's local IndexedDB; never uploaded. The Library has explicit per-row delete and a "Delete all" button.                                                                                            |
-| CSP                              | The HTML response sets a strict-default CSP suitable for this SPA; only `aistudio.google.com` and `generativelanguage.googleapis.com` are reached on the network tab during a normal session.                            |
+| Concern                        | How Atlas handles it                                                                                                                                                                                                                                                                                                         |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Key never sent to our servers  | There's no backend, proxy, or analytics server. Your key goes straight into `GoogleGenAI({ apiKey })` and is only ever sent to Google's Gemini API from your browser.                                                                                                                                                        |
+| Default storage (session tier) | Your key is stored as ciphertext in `sessionStorage` (cleared when the tab closes), encrypted with a random per-session key whose raw bytes can never be read back (its handle lives in IndexedDB). The plaintext key is never stored, and XSS can't steal the encryption key. It survives a page reload within the session. |
+| Persistent storage (opt-in)    | AES-GCM with a PBKDF2-SHA256-derived key. The salt and IV are random for each encryption, and the passphrase is never saved.                                                                                                                                                                                                 |
+| Wrong passphrase               | The UI shows a generic "passphrase didn't unlock" message. A wrong passphrase looks the same as a tampered blob, so there's nothing to help an attacker guess.                                                                                                                                                               |
+| Markdown XSS                   | Two layers of defence: `marked` escapes any raw HTML and drops unsafe links (`javascript:`, `data:`, …), and the result still passes through Angular's `DomSanitizer`. Atlas never calls `bypassSecurityTrustHtml`.                                                                                                          |
+| Tool arguments                 | Every tool declares a Zod schema. The registry won't run a tool with invalid arguments — it returns a typed `tool_result` error the agent can recover from.                                                                                                                                                                  |
+| Agent-authored tool templates  | Response templates are parsed so that `__proto__`, `constructor`, and `prototype` keys are dropped, which prevents prototype pollution.                                                                                                                                                                                      |
+| Diagnostics                    | There's no remote logging. Before anything is written, the logger redacts API keys, passphrases, encrypted values, and base64 media.                                                                                                                                                                                         |
+| Replay data                    | Saved only in your browser's IndexedDB and never uploaded. The Library has per-row delete and a "Delete all" button.                                                                                                                                                                                                         |
+| Content-Security-Policy        | The production build ships a strict CSP: `script-src 'self'` (no inline scripts or `eval`) and a tight `connect-src` that only allows the Gemini API. The main risk is XSS stealing your key, and this CSP is the main protection against it.                                                                                |
 
-The in-app **Security** route walks through the same threat model with the actual constants visible.
+The in-app **Security** page walks through the same threat model with the real values visible, and the error/redaction pipeline is documented in [`docs/error-handling.md`](./docs/error-handling.md).
+
+---
+
+## Performance
+
+- **Lazy routes.** Each feature page loads on demand, so the first page only ships what the chat screen needs.
+- **Lazy tool implementations.** Tool manifests are tiny and load at startup (so the model knows a tool exists); the descriptor — schema, executor, and component — loads on first use. Zod and the tool components stay out of the initial bundle.
+- **Deferred heavy chunks.** Leaflet loads only when the map scrolls into view (`@defer (on viewport)`), and the cost meter and observability drawer load when the browser is idle (`@defer (on idle)`).
+- **Zoneless + OnPush + Signals.** No Zone.js change-detection overhead — the streaming UI only updates the signals that change, and fast-changing streams (like markdown re-rendering) are batched into a single animation frame.
+- **Bundle budgets.** `angular.json` sets size budgets, so a regression fails the production build instead of quietly bloating the app.
+
+---
+
+## Engineering decisions & trade-offs
+
+- **Two views of state instead of one.** The UI wants clean, typed events; Gemini wants its own `Content[]` history with `thoughtSignature` data kept intact (thinking models break on the next round without it). Instead of deriving one from the other and risking drift, the store builds both from the same turn.
+- **Manifest / descriptor split.** A tiny eager layer is what makes lazy-loading real: the model can hear about a dozen tools without loading a dozen components, Zod, and their dependencies up front.
+- **Retries only during setup.** `retryWithBackoff` guards connection setup and the connection test — never a chunk mid-stream. Retrying mid-stream would spend tokens twice and could duplicate output, so it's deliberately left out.
+- **Two key-storage tiers.** Session-only storage with a non-exportable key is the safe default (XSS can't export the key material); passphrase-encrypted local storage is an opt-in convenience. The trade-off — a passphrase prompt on every visit — is intentional.
+- **Mock backends behind a stable contract.** Swapping any tool for a real backend is a one-file change — replace `execute` in the descriptor, and the component, declaration, and Zod schema stay the same (see [what's mocked](#known-limitations--whats-mocked)).
+- **One error pipeline.** Every failure becomes a typed `AppError`, is logged once (with secrets redacted), and is shown based on a simple policy (toast, app-shell, inline, or silent). Cancellations are always silent. This keeps messages consistent and secrets out of the logs, with no remote logging.
 
 ---
 
 ## Known limitations / what's mocked
 
-Atlas is a frontend application. The model **is real**, but the tool _backends_ are not. To keep the app reliable and zero-cost to run:
+Atlas is a frontend app. The model **is real**, but the tool backends are not — this keeps the app reliable and free to run:
 
-- `searchFlights`, `searchHotels`, `bookFlight`, `renderItinerary`, `findActivities` return **deterministic mock data** keyed off their args (same args → same response). Latencies are simulated to make parallel-as-they-settle visible.
-- `bookFlight` does **not** book a real flight; it returns a confirmation payload with a synthesised booking ref.
-- There is no auth, no multi-user state, no server-rendered surface. The whole app is a static SPA.
-- Token prices in [`core/observability/pricing.ts`](./src/app/core/observability/pricing.ts) follow the public Gemini pricing page at the time of writing; update the table to match current pricing.
-
-Switching any tool to a real backend is a one-file change: replace the `execute` function in the descriptor. The component, declaration, and schema stay identical.
+- `searchFlights`, `searchHotels`, `bookFlight`, `renderItinerary`, and `findActivities` return fixed mock data based on their arguments (same input → same output). Delays are simulated so you can see tools running in parallel.
+- `bookFlight` doesn't book a real flight; it returns a confirmation with a made-up booking reference.
+- There's no auth, no multi-user state, and no server rendering. The whole app is a static SPA.
+- Token prices in [`core/observability/pricing.ts`](./src/app/core/observability/pricing.ts) match the public Gemini pricing at the time of writing; update the table to keep them current.
 
 ---
 
 ## Troubleshooting
 
-| Symptom                                                          | Likely cause                                                                                                  | Fix                                                                                                                                                                               |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| "Authentication failed. Your API key may be invalid or expired." | No key, expired session, or revoked/invalid key (all auth failures funnel through the same humanised message) | Open **Settings** → **Forget saved key** to re-onboard. If the key itself is bad, generate a new one in [AI Studio](https://aistudio.google.com/app/apikey).                      |
-| `429 / rate.?limit / quota`                                      | Free-tier RPM exceeded                                                                                        | Wait a minute, or switch model in **Settings**.                                                                                                                                   |
-| "passphrase did not unlock the stored key"                       | Wrong passphrase                                                                                              | Re-enter, or click **Forget saved key** to re-onboard from scratch.                                                                                                               |
-| Cards say "running" forever                                      | Browser blocked the request (e.g. corp proxy)                                                                 | Check the network tab; the request to `generativelanguage.googleapis.com` should be visible.                                                                                      |
-| Map never appears                                                | Browser blocked OSM tiles                                                                                     | Open the network tab while the itinerary card is in view; `tile.openstreetmap.org` must be reachable.                                                                             |
-| `IndexedDB blocked` in Library / Tools                           | Private-browsing mode or storage quota                                                                        | The app gracefully degrades: the **Library** and **Tools** pages render an inline "storage unavailable" banner instead of the editor or list, but the chat surface keeps working. |
+| Symptom                                                          | Likely cause                                                                                 | Fix                                                                                                                                                             |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "Authentication failed. Your API key may be invalid or expired." | No key, an expired session, or a revoked/invalid key (all auth errors show the same message) | Open **Settings** → **Forget saved key** to onboard again. If the key itself is bad, generate a new one in [AI Studio](https://aistudio.google.com/app/apikey). |
+| `429` / rate limit / quota                                       | Free-tier requests-per-minute exceeded                                                       | Wait a minute, or switch the model tier in **Settings**.                                                                                                        |
+| "passphrase did not unlock the stored key"                       | Wrong passphrase                                                                             | Re-enter it, or click **Forget saved key** to start over.                                                                                                       |
+| Cards say "running" forever                                      | The browser blocked the request (e.g. a corporate proxy)                                     | Check the network tab; the request to `generativelanguage.googleapis.com` should be visible.                                                                    |
+| Map never appears                                                | The browser blocked OpenStreetMap tiles                                                      | Open the network tab while the itinerary card is in view; `tile.openstreetmap.org` must be reachable.                                                           |
+| "Storage unavailable" in Library / Tools                         | Private-browsing mode or a full storage quota                                                | The app degrades gracefully: Library and Tools show an inline banner instead of the list/editor, and the chat still works.                                      |
+
+---
+
+## License
+
+Released under the [MIT License](./LICENSE).
