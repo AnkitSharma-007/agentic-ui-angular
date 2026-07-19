@@ -156,7 +156,9 @@ describe('OnboardingSetupFlowComponent', () => {
     patch(inst, { key: 'sk-1234' });
     await inst.test();
     expect(inst.statusKind).toBe('error');
-    expect(inst.errorMessage).toMatch(/Authentication failed/);
+    // Onboarding must not point at a Settings page that isn't reachable yet — guide the user to fix the key here.
+    expect(inst.errorMessage).toMatch(/rejected.*AI Studio|AI Studio.*test again/i);
+    expect(inst.errorMessage).not.toMatch(/Open Settings/i);
   });
 
   it('save() (session mode) stores the key in ApiKeyService after a verified test', async () => {

@@ -180,6 +180,12 @@ export class HomeComponent implements OnInit {
   ngOnInit(): void {
     this.destroyRef.onDestroy(() => this.speechController?.abort());
 
+    // Hydrate the saved-conversations count on first load so the badge is correct
+    // immediately, instead of only after the Library route runs its own refresh.
+    if (!this.replays.loaded()) {
+      void this.replays.refresh();
+    }
+
     this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
       const replayId = params.get('replay');
       if (replayId) {

@@ -15,7 +15,7 @@ import {
   MIN_PASSPHRASE_LENGTH,
   isCommonPassphrase,
 } from '../../../core/crypto/passphrase-strength';
-import { humanizeGeminiError } from '../../../core/errors';
+import { normalizeError } from '../../../core/errors/normalize-error';
 import { StatusBannerComponent } from '../../../shared/status-banner/status-banner';
 import { OnboardingHeroComponent } from '../onboarding-hero/onboarding-hero';
 import { TrustStripComponent } from '../trust-strip/trust-strip';
@@ -137,6 +137,16 @@ export class OnboardingSetupFlowComponent {
     return s.kind === 'error' ? s.message : null;
   }
 
+  // Onboarding has no Settings page yet, so auth failures must guide the user to fix the key here
+  // rather than sending them to a screen they can't reach until a valid key is stored.
+  private describeError(err: unknown): string {
+    const appError = normalizeError(err);
+    if (appError.category === 'auth') {
+      return 'That Gemini key was rejected. Check you pasted the full key from AI Studio, then test again.';
+    }
+    return appError.userMessage;
+  }
+
   protected async test(): Promise<void> {
     const key = this.model().key.trim();
     if (!key) return;
@@ -147,7 +157,7 @@ export class OnboardingSetupFlowComponent {
       this.status.set({ kind: 'tested-ok' });
     } catch (err) {
       this.testedKey.set(null);
-      this.status.set({ kind: 'error', message: humanizeGeminiError(err) });
+      this.status.set({ kind: 'error', message: this.describeError(err) });
     }
   }
 
@@ -167,7 +177,7 @@ export class OnboardingSetupFlowComponent {
       this.status.set({ kind: 'idle' });
       this.ready.emit();
     } catch (err) {
-      this.status.set({ kind: 'error', message: humanizeGeminiError(err) });
+      this.status.set({ kind: 'error', message: this.describeError(err) });
     }
   }
 }
