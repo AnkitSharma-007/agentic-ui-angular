@@ -572,6 +572,62 @@ describe('runAgentTurn — handoff', () => {
     expect(h.agents.activeAgentId()).toBe('experienceCurator');
   });
 
+  it('grants the receiving agent a round when the handoff lands on the final round (H3)', async () => {
+    const tools: ToolDef[] = [
+      {
+        meta: { name: 'work', description: 'work', declaration: decl('work'), interruptive: false },
+        execute: () => ({ ok: true }),
+      },
+      {
+        meta: {
+          name: HANDOFF_TOOL_NAME,
+          description: 'handoff',
+          declaration: decl(HANDOFF_TOOL_NAME),
+          interruptive: false,
+        },
+        execute: () => ({ ok: true }),
+      },
+    ];
+    // Rounds 0-6: the first agent keeps working. Round 7 (the 8th, last
+    // otherwise-allowed round): hand off. Round 8 must still run for the receiver.
+    const workRounds = Array.from({ length: 7 }, () => [toolChunk('work', {}), finishChunk('STOP')]);
+    const h = makeHarness({
+      tools,
+      responses: [
+        ...workRounds,
+        [
+          toolChunk(HANDOFF_TOOL_NAME, {
+            specialist: 'experienceCurator',
+            reason: 'Activities next.',
+          }),
+          finishChunk('STOP'),
+        ],
+        [textChunk('Here are some activities.'), finishChunk('STOP')],
+      ],
+    });
+
+    const events = await drain(
+      runAgentTurn('Plan my trip', 't1', NOOP_OPTIONS, new AbortController().signal, h.deps),
+    );
+
+    // Without the handoff grace round, the loop would stop at 8 and the receiver
+    // (experienceCurator) would never speak.
+    expect(h.streamChunks).toHaveBeenCalledTimes(9);
+    expect(h.agents.activeAgentId()).toBe('experienceCurator');
+
+    const handoffIdx = events.findIndex((e) => e.type === 'agent_handoff');
+    const curatorText = events.find(
+      (e, i): e is Extract<AgentEvent, { type: 'text_delta' }> =>
+        i > handoffIdx && e.type === 'text_delta' && e.chunk.includes('activities'),
+    );
+    expect(curatorText).toBeDefined();
+
+    // Ends on the receiver's normal completion, not a silent MAX_AGENT_ROUNDS stop.
+    const turnComplete = events.at(-1) as Extract<AgentEvent, { type: 'turn_complete' }>;
+    expect(turnComplete.type).toBe('turn_complete');
+    expect(turnComplete.finishReason).toBe('STOP');
+  });
+
   it('does not switch or emit agent_handoff for an unknown specialist (H2)', async () => {
     const tools: ToolDef[] = [
       {

@@ -30,6 +30,10 @@ export const MAX_AGENT_ROUNDS = 8;
 // Cap proposed tools per turn to prevent runaway self-extension.
 export const MAX_TOOL_SYNTHESIS_PER_TURN = 2;
 
+// Each handoff grants the receiving agent one extra round (so a handoff is never
+// a turn's silent final act), bounded so two agents can't ping-pong forever.
+export const MAX_HANDOFFS_PER_TURN = 2;
+
 export interface StreamTimeouts {
   // Max wait for the first chunk — thinking models can take a while before emitting.
   readonly firstChunkMs: number;
@@ -114,9 +118,13 @@ export async function* runAgentTurn(
   let toolsProposed = 0;
 
   let state: StreamState = initialStreamState(turnId);
+  // Handoffs extend the round budget so the receiving agent always gets to respond.
+  let maxRounds = MAX_AGENT_ROUNDS;
+  let handoffs = 0;
+  let round = 0;
 
   try {
-    for (let round = 0; round < MAX_AGENT_ROUNDS; round++) {
+    for (; round < maxRounds; round++) {
       if (round > 0) state = nextRoundState(state);
 
       const breach = checkBudgetGuard(deps);
@@ -159,14 +167,22 @@ export async function* runAgentTurn(
 
       yield* settleRoundToolCalls(outcome.toolCalls, turnId, signal, deps, now);
       toolsProposed += outcome.toolCalls.filter((c) => c.name === PROPOSE_TOOL_NAME).length;
-      yield* applyHandoffIfRequested(outcome.toolCalls, turnId, deps, now);
+
+      // A handoff must never be a turn's final act — the newly-active agent has
+      // not spoken yet. Grant it one more round (bounded) so it can respond,
+      // even if this handoff landed on the last otherwise-allowed round.
+      const handedOff = yield* applyHandoffIfRequested(outcome.toolCalls, turnId, deps, now);
+      if (handedOff && handoffs < MAX_HANDOFFS_PER_TURN) {
+        handoffs++;
+        maxRounds = MAX_AGENT_ROUNDS + handoffs;
+      }
     }
 
     yield {
       type: 'turn_complete',
       ts: now(),
       turnId,
-      rounds: MAX_AGENT_ROUNDS,
+      rounds: round,
       finishReason: 'MAX_AGENT_ROUNDS',
     };
   } catch (err) {
@@ -415,21 +431,23 @@ async function* settleRoundToolCalls(
   );
 }
 
+// Returns true when the active agent actually changed (so the caller can grant
+// the receiving agent a round); false for no handoff or a rejected transition.
 async function* applyHandoffIfRequested(
   toolCalls: readonly ToolCallEvent[],
   turnId: string,
   deps: AgentLoopDeps,
   now: () => number,
-): AsyncGenerator<AgentEvent> {
+): AsyncGenerator<AgentEvent, boolean> {
   const lastHandoff = [...toolCalls].reverse().find((c) => c.name === HANDOFF_TOOL_NAME);
-  if (!lastHandoff) return;
+  if (!lastHandoff) return false;
 
   const args = lastHandoff.args as Record<string, unknown>;
   const toAgentId = typeof args['specialist'] === 'string' ? args['specialist'] : '';
   const reason = typeof args['reason'] === 'string' ? args['reason'] : '';
   const fromAgentId = deps.agents.activeAgentId();
   const transition = deps.agents.switchActive({ turnId, toAgentId, reason });
-  if (!transition) return;
+  if (!transition) return false;
 
   yield {
     type: 'agent_handoff',
@@ -439,6 +457,7 @@ async function* applyHandoffIfRequested(
     toAgentId,
     reason,
   };
+  return true;
 }
 
 function beginTurn(turnId: string, input: UserTurnInput, deps: AgentLoopDeps): void {
