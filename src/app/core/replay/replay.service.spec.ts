@@ -172,7 +172,7 @@ describe('ReplayService', () => {
     await service.save(makePayload({ id: 'valid', savedAt: '2026-05-15T08:00:00.000Z' }));
 
     // Seed a poisoned summary directly (bypassing save); open at v2 so we do not downgrade the DB.
-    const db = await openDb('agentic-ui-angular', 2, (d) => {
+    const db = await openDb('angular-agentic-ui', 2, (d) => {
       if (!d.objectStoreNames.contains('replays')) {
         d.createObjectStore('replays', { keyPath: 'id' });
       }

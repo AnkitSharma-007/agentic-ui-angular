@@ -6,7 +6,7 @@
   },
   "newProjectRoot": "projects",
   "projects": {
-    "agentic-ui-angular": {
+    "angular-agentic-ui": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -77,10 +77,10 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "agentic-ui-angular:build:production"
+              "buildTarget": "angular-agentic-ui:build:production"
             },
             "development": {
-              "buildTarget": "agentic-ui-angular:build:development"
+              "buildTarget": "angular-agentic-ui:build:development"
             }
           },
           "defaultConfiguration": "development"

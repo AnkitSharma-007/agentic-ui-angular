@@ -13,7 +13,7 @@ import { MAX_REPLAY_COUNT, MAX_TOTAL_REPLAY_BYTES } from './replay-size';
 import { LoggerService } from '../logging/logger.service';
 import { normalizeStorageError } from '../errors/normalize-error';
 
-const DB_NAME = 'agentic-ui-angular';
+const DB_NAME = 'angular-agentic-ui';
 // v2 adds a lightweight `summaries` store so the Library route no longer has to
 // deserialize every full payload (incl. inline base64 media) just to list runs.
 const DB_VERSION = 2;
