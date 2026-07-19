@@ -280,7 +280,7 @@ The core runtime — agent loop, streaming, tool registry, observability, persis
 
 ### End-to-end (Playwright)
 
-The e2e specs live in [`e2e/`](./e2e) and follow the manual test plan in [`TEST_CASES.md`](./TEST_CASES.md). They run headless Chromium against a local build. A few cases need a real Gemini key, passed to the test process as an environment variable and never committed.
+The e2e specs live in [`e2e/`](./e2e) and run headless Chromium against a local build. A few cases need a real Gemini key, passed to the test process as an environment variable and never committed.
 
 ```bash
 # one-time: install browser binaries
